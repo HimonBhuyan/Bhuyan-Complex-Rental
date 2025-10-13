@@ -1,0 +1,38 @@
+📧 QUICK EMAIL SETUP FOR FORGOT PASSWORD
+
+=== TO SEND EMAILS TO REAL EMAIL ADDRESSES ===
+
+1. Go to: https://myaccount.google.com/security
+   - Enable "2-Step Verification" if not already enabled
+
+2. Go to: https://myaccount.google.com/apppasswords  
+   - Select "Mail" app and generate password
+   - Copy the 16-character password (like: abcd efgh ijkl mnop)
+
+3. Edit your .env file and replace:
+   EMAIL_USER=himonbhuyan@gmail.com
+   EMAIL_PASS=your-16-character-app-password-here
+
+4. Restart your server: npm run server
+
+5. Test with any email address:
+   - john.doe@email.com (tenant)
+   - jane.smith@email.com (tenant) 
+   - owner@building.com (owner)
+   - himonbhuyan@gmail.com (any role)
+
+=== HOW IT WORKS ===
+Your Gmail (himonbhuyan@gmail.com) will send verification codes TO any user's email address they enter in the forgot password form.
+
+=== TROUBLESHOOTING ===
+- If you get authentication error: Make sure 2FA is enabled and you're using App Password
+- If emails don't arrive: Check spam folder
+- Check server console for detailed error messages
+
+=== CURRENT STATUS ===
+✅ Frontend: Working (modal, validation, UI)
+✅ Backend: Working (API endpoints, code generation)
+✅ Database: Working (user lookup)
+❌ Email: Needs Gmail App Password configuration
+
+Once you configure the email settings, the forgot password feature will send real emails!

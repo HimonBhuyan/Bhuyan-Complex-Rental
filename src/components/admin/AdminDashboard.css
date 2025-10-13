@@ -1,0 +1,477 @@
+/* Modern Admin Dashboard Styles
+   Scope styles under .admin-dashboard to avoid affecting other areas */
+
+:root {
+  --bg: #0b0f17;
+  --surface: #0f1522;
+  --surface-2: #121a2a;
+  --card: #141e31;
+  --muted: #8796b0;
+  --text: #e6eefc;
+  --accent: #5b8cff; /* primary */
+  --accent-2: #22c55e; /* success */
+  --accent-3: #f59e0b; /* warning */
+  --danger: #ef4444;
+  --shadow: 0 8px 24px rgba(0,0,0,0.35);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-lg: 18px;
+  --border: 1px solid rgba(255,255,255,0.06);
+}
+
+.admin-dashboard {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+  background: radial-gradient(1000px 600px at 10% -10%, rgba(91,140,255,0.08), transparent),
+              radial-gradient(800px 500px at 120% 10%, rgba(34,197,94,0.06), transparent),
+              var(--bg);
+  color: var(--text);
+}
+
+/* Sidebar */
+.admin-dashboard .admin-nav {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 24px 18px;
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+  border-right: var(--border);
+}
+
+.admin-dashboard .nav-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.admin-dashboard .nav-header h1 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  margin: 0;
+}
+.admin-dashboard .nav-header span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.admin-dashboard .nav-tabs {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 16px;
+}
+.admin-dashboard .nav-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+.admin-dashboard .nav-tabs button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.35);
+}
+.admin-dashboard .nav-tabs button.active {
+  background: linear-gradient(180deg, rgba(91,140,255,0.18), rgba(91,140,255,0.08));
+  border-color: rgba(91,140,255,0.35);
+}
+
+.admin-dashboard .logout-btn {
+  width: 100%;
+  margin-top: auto;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(239,68,68,0.15), rgba(239,68,68,0.08));
+  color: #ffd9d9;
+  border: 1px solid rgba(239,68,68,0.35);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: filter 0.18s ease, transform 0.18s ease;
+}
+.admin-dashboard .logout-btn:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+/* Main content */
+.admin-dashboard .admin-content {
+  padding: 28px;
+}
+
+/* Dashboard Overview */
+.admin-dashboard .dashboard-overview .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-dashboard .stat-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border: var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.admin-dashboard .stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.45);
+}
+.admin-dashboard .stat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.admin-dashboard .stat-header h3 {
+  font-size: 0.95rem;
+  margin: 0;
+  color: #d9e6ff;
+}
+.admin-dashboard .stat-value {
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+.admin-dashboard .stat-subtitle {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* Month filter + actions */
+.admin-dashboard .month-filter {
+  display: flex;
+  gap: 10px;
+  margin: 18px 0 6px;
+}
+.admin-dashboard .month-filter select,
+.admin-dashboard .month-filter button {
+  padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border: var(--border);
+  color: var(--text);
+  border-radius: 10px;
+}
+.admin-dashboard .generate-bills-btn {
+  background: linear-gradient(180deg, rgba(34,197,94,0.22), rgba(34,197,94,0.12));
+  border: 1px solid rgba(34,197,94,0.35);
+  cursor: pointer;
+}
+
+/* Pending bills list */
+.admin-dashboard .pending-bills {
+  margin-top: 22px;
+}
+.admin-dashboard .pending-bills h3 {
+  margin: 0 0 12px;
+}
+.admin-dashboard .bills-list {
+  display: grid;
+  gap: 10px;
+}
+.admin-dashboard .bill-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+  border: var(--border);
+  border-radius: var(--radius-sm);
+}
+.admin-dashboard .bill-item .bill-info {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.admin-dashboard .bill-item .bill-status {
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+}
+.admin-dashboard .bill-item .penalty {
+  margin-left: 8px;
+  color: #ffd38a;
+}
+
+/* Tenants Management */
+.admin-dashboard .tenants-management .section-header,
+.admin-dashboard .rooms-management .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 16px 0 12px;
+}
+.admin-dashboard .add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(91,140,255,0.2), rgba(91,140,255,0.1));
+  border: 1px solid rgba(91,140,255,0.35);
+  cursor: pointer;
+}
+
+/* Tenants grid */
+.admin-dashboard .tenants-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.admin-dashboard .tenant-card,
+.admin-dashboard .room-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border: var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s ease;
+}
+.admin-dashboard .tenant-card:hover,
+.admin-dashboard .room-card:hover {
+  transform: translateY(-2px);
+}
+.admin-dashboard .tenant-header {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.admin-dashboard .tenant-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.06);
+  border: var(--border);
+}
+.admin-dashboard .tenant-info h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.admin-dashboard .tenant-info .username {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.admin-dashboard .tenant-info .status {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  display: inline-block;
+  margin-top: 6px;
+}
+.admin-dashboard .tenant-details .detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed rgba(255,255,255,0.06);
+}
+.admin-dashboard .tenant-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.admin-dashboard .edit-btn,
+.admin-dashboard .view-btn,
+.admin-dashboard .assign-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.06);
+  border: var(--border);
+  cursor: pointer;
+}
+.admin-dashboard .assign-btn {
+  background: linear-gradient(180deg, rgba(34,197,94,0.18), rgba(34,197,94,0.1));
+  border-color: rgba(34,197,94,0.35);
+}
+
+/* Rooms */
+.admin-dashboard .rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.admin-dashboard .room-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.admin-dashboard .room-number {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(91,140,255,0.15);
+  border: 1px solid rgba(91,140,255,0.35);
+}
+.admin-dashboard .room-status {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+}
+.admin-dashboard .room-details .detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed rgba(255,255,255,0.06);
+}
+.admin-dashboard .current-tenant h4,
+.admin-dashboard .room-utilities h4 {
+  margin: 10px 0 8px;
+  font-size: 0.95rem;
+  color: #d9e6ff;
+}
+.admin-dashboard .utilities-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.admin-dashboard .utility-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  border: var(--border);
+}
+.admin-dashboard .utility-item .included {
+  color: var(--accent-2);
+}
+.admin-dashboard .utility-item .not-included {
+  color: #ffd38a;
+}
+
+/* Forms */
+.admin-dashboard .add-room-component .add-room-form {
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border: var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow);
+}
+.admin-dashboard .form-section h3 {
+  margin-top: 0;
+}
+.admin-dashboard .form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.admin-dashboard input[type="text"],
+.admin-dashboard input[type="email"],
+.admin-dashboard input[type="tel"],
+.admin-dashboard input[type="number"],
+.admin-dashboard input[type="date"],
+.admin-dashboard select,
+.admin-dashboard textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  border: var(--border);
+  border-radius: 10px;
+  outline: none;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.admin-dashboard input:focus,
+.admin-dashboard select:focus,
+.admin-dashboard textarea:focus {
+  box-shadow: 0 0 0 2px rgba(91,140,255,0.3);
+  border-color: rgba(91,140,255,0.5);
+}
+.admin-dashboard .form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.admin-dashboard .form-actions button {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: var(--border);
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  cursor: pointer;
+}
+.admin-dashboard .form-actions button[type="submit"],
+.admin-dashboard .btn {
+  background: linear-gradient(180deg, rgba(91,140,255,0.2), rgba(91,140,255,0.1));
+  border: 1px solid rgba(91,140,255,0.35);
+}
+.admin-dashboard .btn.btn-secondary {
+  background: rgba(255,255,255,0.06);
+}
+
+/* Modal adjustments (scoped) */
+.admin-dashboard .modal .modal-content.room-management {
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.admin-dashboard .modal .form-group label {
+  color: #d9e6ff;
+  font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .admin-dashboard .dashboard-overview .stats-grid,
+  .admin-dashboard .tenants-grid,
+  .admin-dashboard .rooms-grid,
+  .admin-dashboard .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-dashboard {
+    grid-template-columns: 1fr;
+  }
+  .admin-dashboard .admin-nav {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: var(--border);
+  }
+  .admin-dashboard .admin-content {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-dashboard .dashboard-overview .stats-grid,
+  .admin-dashboard .tenants-grid,
+  .admin-dashboard .rooms-grid,
+  .admin-dashboard .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-dashboard .nav-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-dashboard .month-filter {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

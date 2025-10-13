@@ -1,0 +1,28 @@
+[
+  {
+    "id": 1758994515529.6077,
+    "type": "common",
+    "title": "Rent",
+    "message": "rent",
+    "category": "urgent",
+    "priority": "low",
+    "tenantId": null,
+    "timestamp": 1758994515529,
+    "date": "2025-09-27T17:35:15.529Z",
+    "read": false,
+    "author": "Building Management"
+  },
+  {
+    "id": 1758994488659.0742,
+    "type": "common",
+    "title": "Payment Overdue",
+    "message": "Payment Overdue - November",
+    "category": "payment",
+    "priority": "high",
+    "tenantId": null,
+    "timestamp": 1758994488659,
+    "date": "2025-09-27T17:34:48.659Z",
+    "read": false,
+    "author": "Building Management"
+  }
+]

@@ -1,0 +1,135 @@
+:root {
+  /* Typography */
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Design tokens */
+  --brand-primary: #6366f1; /* indigo-500 */
+  --brand-secondary: #7c3aed; /* violet-600 */
+  --bg: #f7f8fb;
+  --bg-elevated: #ffffff;
+  --text: #111827; /* gray-900 */
+  --muted: #6b7280; /* gray-500 */
+  --border: rgba(17, 24, 39, 0.08);
+
+  --success-bg: #dcfce7;
+  --success-fg: #166534;
+  --warning-bg: #fff7d6;
+  --warning-fg: #946200;
+  --danger-bg: #fde2e2;
+  --danger-fg: #9b1c1c;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 8px 24px rgba(0,0,0,0.08);
+  --shadow-lg: 0 20px 60px rgba(0,0,0,0.15);
+
+  --transition-fast: 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --transition-normal: 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --gradient-primary: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
+
+  color-scheme: light dark;
+  color: var(--text);
+  background-color: var(--bg);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark theme token overrides (toggled via documentElement.classList.toggle('dark')) */
+.dark {
+  --bg: #0f172a; /* slate-900 */
+  --bg-elevated: #1f2937; /* gray-800 */
+  --text: #e5e7eb; /* gray-200 */
+  --muted: #9ca3af; /* gray-400 */
+  --border: rgba(255, 255, 255, 0.10);
+
+  --success-bg: rgba(34,197,94,0.15);
+  --success-fg: #86efac;
+  --warning-bg: rgba(234,179,8,0.15);
+  --warning-fg: #fde68a;
+  --danger-bg: rgba(239,68,68,0.15);
+  --danger-fg: #fca5a5;
+
+  /* slightly dampen heavy shadows in dark mode */
+  --shadow-md: 0 8px 24px rgba(0,0,0,0.35);
+  --shadow-lg: 0 20px 60px rgba(0,0,0,0.45);
+}
+
+/* Smooth global theme transitions (respect reduced motion) */
+@media (prefers-reduced-motion: no-preference) {
+  html, body, #root, .owner-dashboard, .owner-dashboard * {
+    transition: background-color var(--transition-normal), color var(--transition-normal), border-color var(--transition-fast);
+  }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}

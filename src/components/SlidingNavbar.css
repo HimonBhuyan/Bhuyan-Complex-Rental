@@ -1,0 +1,297 @@
+.sliding-navbar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  width: 60px;
+  background: #ffffff;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  transition: width 0.3s ease, transform 0.3s ease;
+  z-index: 1000;
+  overflow: hidden;
+  border-right: 1px solid #e5e7eb;
+}
+
+.sliding-navbar.open {
+  width: 240px;
+}
+
+.sliding-navbar:hover {
+  width: 240px;
+}
+
+/* Locked (collapsed) mode: do not expand on hover */
+.sliding-navbar.locked,
+.sliding-navbar.locked:hover {
+  width: 60px;
+}
+
+.navbar-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0;
+}
+
+.navbar-header {
+  padding: 0 1rem;
+  margin-bottom: 2rem;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.navbar-title {
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  opacity: 0;
+  animation: fadeIn 0.3s ease forwards;
+  animation-delay: 0.1s;
+}
+
+.sliding-navbar.open .navbar-title,
+.sliding-navbar.mobile-open .navbar-title {
+  opacity: 1;
+}
+
+.navbar-menu {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: #6b7280;
+  position: relative;
+  margin: 0 0.5rem;
+  border-radius: 8px;
+}
+
+.menu-item:hover {
+  background: #f3f4f6;
+  color: #374151;
+  transform: translateX(2px);
+}
+
+.menu-item.logout-item:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.menu-item.theme-item:hover {
+  background: #f0f9ff;
+  color: #0284c7;
+}
+
+.dark .menu-item.theme-item:hover {
+  background: #1e3a8a;
+  color: #60a5fa;
+}
+
+.menu-item.theme-item {
+  position: relative;
+}
+
+.menu-item.theme-item::after {
+  content: '';
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.sliding-navbar.open .menu-item.theme-item::after {
+  opacity: 1;
+}
+
+.dark .menu-item.theme-item::after {
+  background: #60a5fa;
+}
+
+.menu-label {
+  margin-left: 1rem;
+  white-space: nowrap;
+  opacity: 0;
+  animation: fadeIn 0.3s ease forwards;
+  animation-delay: 0.1s;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.sliding-navbar.open .menu-label,
+.sliding-navbar.mobile-open .menu-label {
+  opacity: 1;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Dark theme support */
+.dark .sliding-navbar {
+  background: #1f2937;
+  border-right-color: #374151;
+}
+
+.dark .navbar-title {
+  color: #f9fafb;
+}
+
+.dark .menu-item {
+  color: #9ca3af;
+}
+
+.dark .menu-item:hover {
+  background: #374151;
+  color: #f9fafb;
+}
+
+.dark .menu-item.logout-item:hover {
+  background: #7f1d1d;
+  color: #fca5a5;
+}
+
+/* Mobile hamburger menu button */
+.mobile-navbar-toggle {
+  display: none;
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1001;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+
+.mobile-navbar-toggle:hover {
+  background: #5a67d8;
+  transform: scale(1.05);
+}
+
+.mobile-navbar-toggle:active {
+  transform: scale(0.95);
+}
+
+.dark .mobile-navbar-toggle {
+  background: #374151;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark .mobile-navbar-toggle:hover {
+  background: #4b5563;
+}
+
+/* Mobile overlay */
+.mobile-navbar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.mobile-navbar-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  /* Show hamburger menu button on mobile */
+  .mobile-navbar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Show overlay when menu is open */
+  .mobile-navbar-overlay {
+    display: block;
+  }
+
+  /* Hide navbar by default on mobile */
+  .sliding-navbar {
+    width: 240px;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease, width 0.3s ease;
+    pointer-events: none;
+  }
+  
+  /* Show navbar when open */
+  .sliding-navbar.mobile-open {
+    width: 240px;
+    transform: translateX(0);
+    box-shadow: 4px 0 12px rgba(0, 0, 0, 0.15);
+    pointer-events: auto;
+  }
+
+  /* Don't expand on hover on mobile */
+  .sliding-navbar:hover {
+    width: 0;
+    transform: translateX(-100%);
+  }
+
+  .sliding-navbar.mobile-open:hover {
+    width: 240px;
+    transform: translateX(0);
+  }
+  
+  .menu-item {
+    padding: 0.75rem 1rem;
+  }
+
+  /* Adjust main content margin on mobile */
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+}
+
+
+/* Animation for smooth hover effect */
+.sliding-navbar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 3px;
+  background: transparent;
+  transition: all 0.3s ease;
+}
+
+.sliding-navbar:hover::before {
+  background: #667eea;
+}

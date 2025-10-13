@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .test-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 500px;
+        }
+        h1 { margin-top: 0; color: #ffffff; }
+        .status { margin: 15px 0; padding: 10px; border-radius: 8px; }
+        .success { background: rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.3); }
+        .error { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.3); }
+        button {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        button:hover { transform: translateY(-1px); }
+        .test-results { margin-top: 20px; text-align: left; }
+    </style>
+</head>
+<body>
+    <div class="test-card">
+        <h1>🔧 Rental Management System Test</h1>
+        
+        <div class="status success">
+            ✅ Frontend Server is Working
+        </div>
+        
+        <div class="test-results">
+            <h3>Testing Backend Connection:</h3>
+            <div id="backend-status">Testing...</div>
+            
+            <h3>Quick Tests:</h3>
+            <button onclick="testBackend()">Test Backend API</button>
+            <button onclick="testLogin()">Test Login</button>
+            <button onclick="goToMainApp()">Go to Main App</button>
+        </div>
+        
+        <div id="results" style="margin-top: 20px; font-family: monospace; text-align: left; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; max-height: 300px; overflow-y: auto;"></div>
+    </div>
+
+    <script>
+        // Test backend connection
+        async function testBackend() {
+            const results = document.getElementById('results');
+            results.innerHTML = 'Testing backend connection...\n';
+            
+            try {
+                const response = await fetch('http://localhost:3001/health');
+                if (response.ok) {
+                    const data = await response.json();
+                    results.innerHTML += '✅ Backend Health: OK\n';
+                    results.innerHTML += JSON.stringify(data, null, 2) + '\n\n';
+                } else {
+                    results.innerHTML += '❌ Backend Health: Failed\n';
+                    results.innerHTML += `Status: ${response.status}\n\n`;
+                }
+            } catch (error) {
+                results.innerHTML += '❌ Backend Connection: Failed\n';
+                results.innerHTML += `Error: ${error.message}\n\n`;
+            }
+        }
+
+        // Test login functionality
+        async function testLogin() {
+            const results = document.getElementById('results');
+            results.innerHTML += 'Testing login...\n';
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'owner',
+                        password: 'owner123',
+                        role: 'owner'
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    results.innerHTML += '✅ Login: Success\n';
+                    results.innerHTML += `Token: ${data.token.substring(0, 50)}...\n`;
+                    results.innerHTML += `User: ${data.user.name}\n\n`;
+                } else {
+                    results.innerHTML += '❌ Login: Failed\n';
+                    results.innerHTML += JSON.stringify(data, null, 2) + '\n\n';
+                }
+            } catch (error) {
+                results.innerHTML += '❌ Login: Error\n';
+                results.innerHTML += `Error: ${error.message}\n\n`;
+            }
+        }
+
+        // Go to main application
+        function goToMainApp() {
+            window.location.href = '/';
+        }
+
+        // Auto-test backend on page load
+        window.addEventListener('load', () => {
+            testBackend();
+        });
+    </script>
+</body>
+</html>

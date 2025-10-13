@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Login Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .test-section { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 8px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        pre { background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 4px; overflow-x: auto; }
+        .log { max-height: 400px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Client Dashboard Login Test</h1>
+    
+    <div class="test-section">
+        <h3>📱 Test Instructions:</h3>
+        <ol>
+            <li>Click "Test Tenant Login" to verify authentication</li>
+            <li>Check the API response and token storage</li>
+            <li>Click "Open Client Dashboard" to navigate to the actual app</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h3>🔐 Authentication Test:</h3>
+        <button onclick="testTenantLogin()">Test Tenant Login</button>
+        <button onclick="clearLocalStorage()">Clear Local Storage</button>
+        <button onclick="openClientDashboard()">Open Client Dashboard</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 Test Results:</h3>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function clearLocalStorage() {
+            localStorage.clear();
+            log('✅ Local storage cleared', 'success');
+        }
+
+        async function testTenantLogin() {
+            try {
+                log('🔄 Starting tenant login test...');
+                
+                // Test login
+                const response = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'jane.smith',
+                        password: 'tenant123',
+                        role: 'tenant'
+                    })
+                });
+
+                const data = await response.json();
+                log(`📡 Login response: ${JSON.stringify(data, null, 2)}`);
+
+                if (data.success) {
+                    log('✅ Login successful!', 'success');
+                    
+                    // Store token in localStorage
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    log('💾 Token and user data stored in localStorage', 'success');
+                    
+                    // Test dashboard API
+                    log('🔄 Testing dashboard API...');
+                    const dashboardResponse = await fetch('http://localhost:3001/api/tenant/dashboard', {
+                        headers: {
+                            'Authorization': `Bearer ${data.token}`
+                        }
+                    });
+
+                    const dashboardData = await dashboardResponse.json();
+                    log(`📊 Dashboard response: ${JSON.stringify(dashboardData, null, 2)}`);
+
+                    if (dashboardData.success) {
+                        log(`✅ Dashboard API working! Found ${dashboardData.bills.length} bills`, 'success');
+                        
+                        // Show bill details
+                        if (dashboardData.bills.length > 0) {
+                            dashboardData.bills.forEach((bill, index) => {
+                                log(`📄 Bill ${index + 1}: ${bill.billNumber || 'No number'} - ₹${bill.totalAmount || 0} (${bill.status})`);
+                                if (bill.items) {
+                                    log(`   - Rent: ₹${bill.items.rent?.amount || 0}`);
+                                    log(`   - Electricity: ₹${bill.items.electricity?.amount || 0} (${bill.items.electricity?.unitsConsumed || 0} units)`);
+                                    log(`   - Water: ₹${bill.items.waterBill?.amount || 0}`);
+                                    log(`   - Common Area: ₹${bill.items.commonAreaCharges?.amount || 0}`);
+                                } else {
+                                    log(`   ⚠️ Bill structure incomplete (missing items)`, 'error');
+                                }
+                            });
+                        }
+                    } else {
+                        log(`❌ Dashboard API failed: ${dashboardData.error}`, 'error');
+                    }
+                } else {
+                    log(`❌ Login failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Test error: ${error.message}`, 'error');
+            }
+        }
+
+        function openClientDashboard() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                log('❌ No token found. Please login first.', 'error');
+                return;
+            }
+            
+            log('🌐 Opening client dashboard...', 'success');
+            window.open('http://localhost:5173/client', '_blank');
+        }
+
+        // Auto-run basic checks on page load
+        window.onload = function() {
+            log('🏁 Client Dashboard Test Page Loaded');
+            log('🔍 Checking current localStorage...');
+            
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            if (token) {
+                log(`✅ Token found: ${token.substring(0, 20)}...`);
+                try {
+                    const userObj = JSON.parse(user);
+                    log(`✅ User: ${userObj.name} (${userObj.username}) - Role: ${userObj.role}`);
+                } catch (e) {
+                    log('⚠️ User data corrupted in localStorage', 'error');
+                }
+            } else {
+                log('ℹ️ No stored authentication found');
+            }
+        };
+    </script>
+</body>
+</html>
