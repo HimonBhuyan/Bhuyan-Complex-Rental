@@ -633,6 +633,29 @@ app.put('/api/admin/rooms/:roomId', authenticateToken, async (req, res) => {
   }
 });
 
+// Delete room (only if vacant)
+app.delete('/api/admin/rooms/:roomId', authenticateToken, async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const room = await Room.findById(roomId).populate('currentTenant');
+    if (!room) return res.status(404).json({ success: false, error: 'Room not found' });
+
+    if (room.currentTenant) {
+      return res.status(400).json({ success: false, error: 'Cannot delete an occupied room. Please vacate the room first.' });
+    }
+
+    await Room.findByIdAndDelete(roomId);
+
+    // Broadcast to clients that rooms changed
+    broadcastToClients({ type: 'ROOMS_UPDATED' });
+
+    res.json({ success: true, deleted: roomId });
+  } catch (error) {
+    console.error('❌ Error deleting room:', error);
+    res.status(500).json({ error: 'Failed to delete room' });
+  }
+});
+
 // Add new room
 app.post('/api/admin/rooms', authenticateToken, async (req, res) => {
   try {

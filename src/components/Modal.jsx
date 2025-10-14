@@ -1287,6 +1287,8 @@ const Modal = ({ isOpen, onClose, type, data: _data, customContent }) => {
   // Rooms management (View/Edit Rooms)
   const [roomsLoading, setRoomsLoading] = useState(false)
   const [editingRoom, setEditingRoom] = useState(null)
+  const [roomSearch, setRoomSearch] = useState('')
+  const [floorFilter, setFloorFilter] = useState('all')
   const [roomForm, setRoomForm] = useState({
     roomNumber: '',
     floor: '',
@@ -1330,6 +1332,11 @@ const Modal = ({ isOpen, onClose, type, data: _data, customContent }) => {
       loadRooms()
       setGeneratedCreds(null)
     }
+
+    // Listen for rooms updates broadcast
+    const onRoomsUpdated = () => loadRooms()
+    window.addEventListener('roomsUpdated', onRoomsUpdated)
+    return () => window.removeEventListener('roomsUpdated', onRoomsUpdated)
   }, [isOpen, type])
 
   // View Tenants modal state and effects
@@ -1503,6 +1510,40 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
       })
     } else {
       setTenantForm({ tenantId: '', username: '', name: '', email: '', phone: '', moveInDate: '', securityDepositPaid: '' })
+    }
+  }
+
+  const handleDeleteRoom = async (room) => {
+    if (room.currentTenant) {
+      safeToast.error('Vacate the room before deletion')
+      return
+    }
+    if (!window.confirm(`Delete room ${room.roomNumber}? This cannot be undone.`)) return
+    try {
+      setRoomsLoading(true)
+      const token = localStorage.getItem('token')
+      const resp = await fetch(`${getApiUrl()}/admin/rooms/${room._id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok || !data.success) {
+        throw new Error(data.error || 'Failed to delete room')
+      }
+      safeToast.success('Room deleted')
+      // Refresh
+      const listResp = await fetch(`${getApiUrl()}/admin/rooms`, { headers: { Authorization: `Bearer ${token}` } })
+      if (listResp.ok) {
+        const listData = await listResp.json()
+        setRoomsList(listData.rooms || [])
+      }
+      // notify other tabs
+      window.dispatchEvent(new Event('roomsUpdated'))
+    } catch (e) {
+      console.error('Delete room failed', e)
+      safeToast.error(e.message || 'Failed to delete room')
+    } finally {
+      setRoomsLoading(false)
     }
   }
 
@@ -3507,13 +3548,24 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
                   <Search size={16} />
                   <input 
                     type="text" 
-                    placeholder="Search rooms..."
+                    placeholder="Search rooms... (number, type, tenant)"
                     className="form-control"
-                    disabled
+                    value={roomSearch}
+                    onChange={(e) => setRoomSearch(e.target.value)}
                   />
                 </div>
-                <select className="form-control" disabled>
-                  <option>All Floors</option>
+                <select 
+                  className="form-control"
+                  value={floorFilter}
+                  onChange={(e) => setFloorFilter(e.target.value)}
+                >
+                  <option value="all">All Floors</option>
+                  {Array.from(new Set(roomsList.map(r => (typeof r.floor === 'number' ? String(r.floor) : (r.floor || '')).trim()).values()))
+                    .filter(Boolean)
+                    .sort((a,b)=>Number(a)-Number(b))
+                    .map(f => (
+                      <option key={f} value={f}>{f}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -3522,7 +3574,17 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
               <div style={{ padding: '8px' }}>Loading rooms…</div>
             ) : (
               <div className="rooms-grid">
-                {roomsList.map(room => (
+                {roomsList
+                  .filter(room => {
+                    const q = roomSearch.toLowerCase().trim()
+                    const matchesQuery = !q ||
+                      String(room.roomNumber || '').toLowerCase().includes(q) ||
+                      String(room.type || '').toLowerCase().includes(q) ||
+                      String(room.currentTenant?.name || '').toLowerCase().includes(q)
+                    const matchesFloor = floorFilter === 'all' || String(room.floor ?? '') === String(floorFilter)
+                    return matchesQuery && matchesFloor
+                  })
+                  .map(room => (
                   <div key={room._id} className={`room-card ${room.status}`}>
                     <div className="room-header">
                       <div className="room-number">{room.roomNumber}</div>
@@ -3562,6 +3624,14 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
                     <div className="room-actions">
                       <button className="btn btn-sm btn-outline" onClick={() => openEditRoom(room)}>
                         <Edit2 size={14} /> Edit
+                      </button>
+                      <button 
+                        className="btn btn-sm btn-danger"
+                        onClick={() => handleDeleteRoom(room)}
+                        disabled={!!room.currentTenant}
+                        title={room.currentTenant ? 'Vacate room before deletion' : 'Delete room'}
+                      >
+                        <Trash2 size={14} /> Delete
                       </button>
                     </div>
                   </div>
