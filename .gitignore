@@ -8,8 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
+# Allow dist to be tracked for Render fallback
+# (Prefer build on deploy; commit dist only as a temporary workaround)
+# dist
+# dist-ssr
 *.local
 
 # Editor directories and files
