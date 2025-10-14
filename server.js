@@ -1662,8 +1662,6 @@ app.post('/api/admin/bills/generate-individual', authenticateToken, async (req, 
       commonAreaCharges = 0
     } = req.body;
 
-    // Set due date to 10th of next month (consistent with bulk generation)
-    const dueDate = new Date(parseInt(year), parseInt(month), 10);
 
     // Check if bill already exists
     const existingBill = await Bill.findOne({
