@@ -1,61 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { toast } from 'react-hot-toast'
-import { Building, User, Lock, Eye, EyeOff, ArrowRight, Shield, Home, Users } from 'lucide-react'
+import { Building, User, Lock, Shield, Home, Users, Eye, EyeOff } from 'lucide-react'
+import { getApiUrl } from '../../utils/api'
 import ForgotPasswordModal from './ForgotPasswordModal'
 import './Login.css'
-
-// Error Boundary Component
-class LoginErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props)
-    this.state = { hasError: false }
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true }
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('Login component error:', error, errorInfo)
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ 
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          textAlign: 'center',
-          fontFamily: 'system-ui'
-        }}>
-          <div style={{ background: 'rgba(255,255,255,0.1)', padding: '2rem', borderRadius: '1rem' }}>
-            <h2>Login Error</h2>
-            <p>Something went wrong with the login page. Please refresh the page.</p>
-            <button 
-              onClick={() => window.location.reload()}
-              style={{ 
-                padding: '0.75rem 1.5rem',
-                background: '#667eea',
-                color: 'white',
-                border: 'none',
-                borderRadius: '0.5rem',
-                cursor: 'pointer'
-              }}
-            >
-              Refresh Page
-            </button>
-          </div>
-        </div>
-      )
-    }
-
-    return this.props.children
-  }
-}
 
 const Login = ({ onLogin }) => {
   const [formData, setFormData] = useState({
@@ -68,6 +16,31 @@ const Login = ({ onLogin }) => {
   const [isAnimated, setIsAnimated] = useState(false)
   const [currentFeature, setCurrentFeature] = useState(0)
   const [showForgotPassword, setShowForgotPassword] = useState(false)
+  
+  // Reset form when component mounts (after logout)
+  useEffect(() => {
+    console.log('🔄 [Login] Component mounted - resetting form');
+    setFormData({
+      username: '',
+      password: '',
+      role: 'tenant'
+    });
+    setLoading(false);
+    
+    // Listen for logout events to reset form
+    const handleLogout = () => {
+      console.log('🚪 [Login] Received logout event - resetting form');
+      setFormData({
+        username: '',
+        password: '',
+        role: 'tenant'
+      });
+      setLoading(false);
+    };
+    
+    window.addEventListener('userLoggedOut', handleLogout);
+    return () => window.removeEventListener('userLoggedOut', handleLogout);
+  }, [])
   
   const features = [
     {
@@ -137,49 +110,70 @@ const Login = ({ onLogin }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    console.log('🔑 [Login] Starting login process...');
+    
+    // Clear any existing tokens before login
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
     setLoading(true)
 
     try {
+      console.log('🌍 [Login] Making API call to backend...');
       // Make API call to backend
-      const response = await fetch('http://localhost:3001/api/auth/login', {
+      const response = await fetch(`${getApiUrl()}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: formData.username,
+          username: formData.username.trim(),
           password: formData.password,
           role: formData.role
         })
       })
       
-      const data = await response.json()
+      console.log('📨 [Login] Backend response status:', response.status);
       
-      if (data.success) {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json()
+      console.log('📊 [Login] Backend response data:', data);
+      
+      if (data.success && data.token && data.user) {
         // Store JWT token
         localStorage.setItem('token', data.token)
+        console.log('✅ [Login] Token stored, calling onLogin...');
         toast.success(`Welcome back, ${data.user.name}!`)
         onLogin(data.user)
       } else {
+        console.error('❌ [Login] API returned failure:', data);
         toast.error(data.error || 'Invalid credentials. Please try again.')
       }
     } catch (error) {
-      console.error('Login error:', error)
+      console.error('❌ [Login] Login error:', error)
+      console.log('🔄 [Login] Attempting fallback to demo authentication...');
+      
       // Fallback to demo authentication if backend is not available
       const user = demoUsers.find(u => 
-        u.username === formData.username && 
+        u.username === formData.username.trim() && 
         u.password === formData.password && 
         u.role === formData.role
       )
 
       if (user) {
+        console.log('✅ [Login] Demo user found, logging in...');
         toast.success(`Welcome back, ${user.name}! (Demo Mode)`)
         onLogin(user)
       } else {
-        toast.error('Login failed. Please check your credentials and ensure the backend server is running.')
+        console.error('❌ [Login] Demo user not found');
+        toast.error('Login failed. Please check your credentials and try again.')
       }
     } finally {
       setLoading(false)
+      console.log('🏁 [Login] Login process completed');
     }
   }
 
@@ -243,7 +237,6 @@ const Login = ({ onLogin }) => {
           <div className="login-form-container">
             <div className="login-header">
               <h2>Welcome Back</h2>
-              <h2>Bhuyan Complex Rent Management System</h2>
               <p>Sign in to access your account</p>
             </div>
             
@@ -267,13 +260,11 @@ const Login = ({ onLogin }) => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="form-group">
                 <label className="form-label">Username</label>
                 <div className="input-wrapper">
-                  <div className="input-icon">
-                    <User size={20} />
-                  </div>
+                  <User className="input-icon" size={18} />
                   <input
                     type="text"
                     name="username"
@@ -282,16 +273,15 @@ const Login = ({ onLogin }) => {
                     className="form-input"
                     placeholder="Enter your username"
                     required
+                    autoComplete="username"
                   />
                 </div>
               </div>
-              
+
               <div className="form-group">
                 <label className="form-label">Password</label>
                 <div className="input-wrapper">
-                  <div className="input-icon">
-                    <Lock size={20} />
-                  </div>
+                  <Lock className="input-icon" size={18} />
                   <input
                     type={showPassword ? "text" : "password"}
                     name="password"
@@ -300,98 +290,63 @@ const Login = ({ onLogin }) => {
                     className="form-input"
                     placeholder="Enter your password"
                     required
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
                     className="password-toggle"
                     onClick={() => setShowPassword(!showPassword)}
                   >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
-              
-              <button
-                type="submit"
-                className={`login-btn ${loading ? 'loading' : ''}`}
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <div className="btn-spinner"></div>
-                    Signing in...
-                  </>
-                ) : (
-                  <>
-                    Sign In
-                    <ArrowRight size={20} />
-                  </>
-                )}
-              </button>
-              
-              <div className="forgot-password-section">
+
+              <div className="form-actions">
                 <button
                   type="button"
                   className="forgot-password-link"
                   onClick={() => setShowForgotPassword(true)}
                 >
-                  Forgot your password?
+                  Forgot password?
                 </button>
               </div>
+
+              <button
+                type="submit"
+                className={`login-button ${loading ? 'loading' : ''}`}
+                disabled={loading}
+              >
+                {loading ? 'Signing in...' : 'Sign In'}
+              </button>
             </form>
-            
-            <div className="demo-section">
-              <div className="demo-divider">
-                <span>Demo Accounts</span>
-              </div>
-              
-              <div className="demo-grid">
-                <div 
-                  className="demo-card tenant" 
-                  onClick={() => setFormData({username: 'john.doe', password: 'tenant123', role: 'tenant'})}
-                >
-                  <div className="demo-icon">
-                    <Home size={16} />
+
+            <div className="login-footer">
+              <div className="demo-credentials">
+                <p className="demo-title">Demo Credentials:</p>
+                <div className="demo-users">
+                  <div className="demo-user">
+                    <strong>Owner:</strong> owner / owner123
                   </div>
-                  <div className="demo-info">
-                    <strong>Tenant</strong>
-                    <span>john.doe / tenant123</span>
-                  </div>
-                </div>
-                
-                <div 
-                  className="demo-card owner" 
-                  onClick={() => setFormData({username: 'owner', password: 'owner123', role: 'owner'})}
-                >
-                  <div className="demo-icon">
-                    <Building size={16} />
-                  </div>
-                  <div className="demo-info">
-                    <strong>Owner</strong>
-                    <span>owner / owner123</span>
+                  <div className="demo-user">
+                    <strong>Tenant:</strong> john.doe / tenant123
                   </div>
                 </div>
               </div>
-              
-              <p className="demo-note">Click on any demo account to auto-fill credentials</p>
             </div>
           </div>
         </div>
       </div>
-      
+
       {/* Forgot Password Modal */}
-      <ForgotPasswordModal 
-        isOpen={showForgotPassword} 
-        onClose={() => setShowForgotPassword(false)}
-      />
+      {showForgotPassword && (
+        <ForgotPasswordModal
+          isOpen={showForgotPassword}
+          onClose={() => setShowForgotPassword(false)}
+        />
+      )}
     </div>
   )
 }
 
-const LoginWithErrorBoundary = (props) => (
-  <LoginErrorBoundary>
-    <Login {...props} />
-  </LoginErrorBoundary>
-)
-
-export default LoginWithErrorBoundary
+export default Login

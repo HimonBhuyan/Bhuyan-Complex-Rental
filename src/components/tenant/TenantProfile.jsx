@@ -25,6 +25,7 @@ import {
   CheckCircle
 } from 'lucide-react'
 import SlidingNavbar from '../SlidingNavbar'
+import { getApiUrl } from '../../utils/api'
 import './TenantProfile.css'
 
 const TenantProfile = ({ onLogout }) => {
@@ -80,7 +81,7 @@ const TenantProfile = ({ onLogout }) => {
         const token = localStorage.getItem('token')
         if (token) {
           console.log('🌍 [TenantProfile] Loading from backend...')
-          const response = await fetch('http://localhost:3001/api/tenant/profile', {
+          const response = await fetch(`${getApiUrl()}/tenant/profile`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -270,7 +271,7 @@ const TenantProfile = ({ onLogout }) => {
       
       console.log('📤 [TenantProfile] Sending data to backend:', profileDataForBackend)
       
-      const response = await fetch('http://localhost:3001/api/tenant/profile', {
+      const response = await fetch(`${getApiUrl()}/tenant/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -419,7 +420,7 @@ const TenantProfile = ({ onLogout }) => {
               documents: updatedDocuments
             }
             
-            const response = await fetch('http://localhost:3001/api/tenant/profile', {
+            const response = await fetch(`${getApiUrl()}/tenant/profile`, {
               method: 'PUT',
               headers: {
                 'Content-Type': 'application/json',

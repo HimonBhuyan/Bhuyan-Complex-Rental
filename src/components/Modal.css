@@ -2242,6 +2242,16 @@ textarea.form-control {
   min-width: 1200px;
 }
 
+/* Dark mode for room management */
+.dark .room-management .room-card { background: #1f2937; border-color: #374151; }
+.dark .room-management .room-header { border-bottom: 1px solid #374151; }
+.dark .room-management .room-number { color: #f9fafb; }
+.dark .room-management .room-status { background: #374151; color: #e5e7eb; }
+.dark .room-management .room-details .detail-item span:first-child { color: #cbd5e1; }
+.dark .room-management .room-details .detail-item span:last-child { color: #f3f4f6; }
+.dark .room-management .search-filter .form-control { background: #374151; border-color: #4b5563; color: #f9fafb; }
+.dark .room-management .search-filter .form-control::placeholder { color: #9ca3af; }
+
 .bill-tabs {
   display: flex;
   border-bottom: 2px solid #e5e7eb;
@@ -2727,6 +2737,22 @@ textarea.form-control {
 .summary-item.total span {
   font-weight: 700;
 }
+
+/* Dark theme adjustments for bill summary */
+.dark .bill-form {
+  background: #111827;
+  border-color: #374151;
+}
+.dark .bill-form h4 { color: #f9fafb; }
+.dark .electricity-section,
+.dark .other-charges-section,
+.dark .bill-summary {
+  background: #1f2937;
+  border-color: #374151;
+}
+.dark .bill-summary h5 { color: #e5e7eb; }
+.dark .summary-item { background: #374151; color: #f3f4f6; }
+.dark .summary-item span { color: #f3f4f6; }
 
 .bill-actions {
   display: flex;
@@ -3682,6 +3708,12 @@ textarea.form-control {
     width: 100%;
     max-width: 300px;
   }
+
+  /* Room management mobile improvements */
+  .room-management .rooms-grid { grid-template-columns: 1fr; gap: 0.75rem; }
+  .room-management .room-card { padding: 0.75rem; }
+  .room-management .room-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .room-management .room-actions .btn { padding: 0.5rem 0.75rem; font-size: 0.85rem; }
   
   .tenants-grid {
     grid-template-columns: 1fr;

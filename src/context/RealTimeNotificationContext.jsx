@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
+import { getWebSocketUrl, getApiUrl } from '../utils/api';
 
 const RealTimeNotificationContext = createContext();
 
@@ -13,8 +14,14 @@ export const useRealTimeNotifications = () => {
   return context;
 };
 
-const WS_URL = "ws://localhost:3001";
-const API_URL = "http://localhost:3001/api";
+// Use centralized API configuration
+const WS_URL = getWebSocketUrl();
+const API_URL = getApiUrl();
+
+// Log configuration for debugging
+console.log('🔗 RealTimeNotificationContext Configuration:');
+console.log('  WebSocket URL:', WS_URL);
+console.log('  API URL:', API_URL);
 
 export const RealTimeNotificationProvider = ({ children }) => {
   // Initialize as empty array instead of undefined
@@ -322,6 +329,25 @@ export const RealTimeNotificationProvider = ({ children }) => {
       );
       connect();
     });
+    
+    // Listen for logout events to clean up notifications
+    const handleLogout = () => {
+      console.log('🚪 [RealTimeContext] User logged out - clearing notifications');
+      setNotifications([]);
+      setUnreadCount(0);
+      setIsInitialized(false);
+      setConnectionStatus('disconnected');
+      
+      // Close WebSocket connection
+      if (websocket) {
+        websocket.close(1000, 'User logged out');
+      }
+      
+      // Clear notifications from localStorage
+      localStorage.removeItem('notifications');
+    };
+    
+    window.addEventListener('userLoggedOut', handleLogout);
 
     // Cleanup on unmount
     return () => {
@@ -331,6 +357,7 @@ export const RealTimeNotificationProvider = ({ children }) => {
       if (websocket) {
         websocket.close(1000, "Component unmounted");
       }
+      window.removeEventListener('userLoggedOut', handleLogout);
     };
   }, []);
 

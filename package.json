@@ -8,8 +8,12 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "node server.js",
+    "start": "node server.js",
     "notification-server": "node notification-server.js",
-    "start:all": "concurrently \"npm run server\" \"npm run dev\""
+    "start:all": "concurrently \"npm run server\" \"npm run dev\"",
+    "verify": "node verify-config.js",
+    "test:ws": "node test-websocket.js",
+    "postbuild": "echo 'Build completed successfully! 🎉'"
   },
   "dependencies": {
     "axios": "^1.12.2",

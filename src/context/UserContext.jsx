@@ -134,14 +134,38 @@ export const UserProvider = ({ children }) => {
 
   // Logout function
   const logout = () => {
+    console.log('🚪 [UserContext] Logging out user...');
+    
+    // Clear user state
     setUser(null);
+    
+    // Clear all authentication and user data from localStorage
     localStorage.removeItem("user");
-
+    localStorage.removeItem("token");
+    
+    // Clear any cached profile data
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('profile_') || 
+          key.startsWith('userProfilePhoto_') || 
+          key.startsWith('ownerProfile') || 
+          key.startsWith('tenantProfile') || 
+          key.includes('LastUpdated')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    console.log('✅ [UserContext] User logged out and localStorage cleared');
+    
+    // Dispatch logout event
     window.dispatchEvent(
       new CustomEvent("userUpdated", {
         detail: null,
       })
     );
+    
+    // Also dispatch a logout event for other components to handle
+    window.dispatchEvent(new CustomEvent("userLoggedOut"));
   };
 
   // Listen for user updates from other tabs/windows and owner/tenant WS updates

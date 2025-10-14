@@ -7,6 +7,7 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
+const path = require('path');
 const mongoose = require('mongoose');
 const { WebSocketServer } = require('ws');
 const bcrypt = require('bcryptjs');
@@ -15,7 +16,7 @@ const cron = require('node-cron');
 const connectDB = require('./config/database');
 const { Owner, Room, Tenant, Bill, Payment, Notification } = require('./models');
 const emailService = require('./backend/services/emailService');
-const XLSX = require('xlsx');
+const XLSX = require('xlsx');     
 
 // Import route modules
 const tenantRoutes = require('./backend/routes/tenant');
@@ -29,8 +30,44 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
 // Connect to MongoDB
 connectDB();
 
-// Middleware
-app.use(cors());
+// Middleware - Configure CORS for production
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins for production
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001', 
+      'http://localhost:5173',
+      'http://localhost:5174', // Add port 5174 for Vite dev server
+      'https://localhost:5173',
+      'https://localhost:5174',
+      'https://localhost:3000',
+      process.env.FRONTEND_URL, // For production deployment
+      process.env.RENDER_EXTERNAL_URL, // For Render deployment
+    ].filter(Boolean); // Remove undefined values
+    
+    // In development, allow all origins
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log(`❌ CORS blocked origin: ${origin}`);
+      console.log(`✅ Allowed origins:`, allowedOrigins);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
 
 // Increase body size limits to allow base64 profile photos and documents
 app.use(express.json({ limit: '10mb' }));
@@ -40,6 +77,17 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/tenant', tenantRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/penalties', penaltyRoutes);
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    message: 'Bhuyan Complex Rental Management System is running',
+    environment: process.env.NODE_ENV || 'development',
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
 
 // Create HTTP server and WebSocket server
 const server = http.createServer(app);
@@ -1614,6 +1662,9 @@ app.post('/api/admin/bills/generate-individual', authenticateToken, async (req, 
       commonAreaCharges = 0
     } = req.body;
 
+    // Set due date to 10th of next month (consistent with bulk generation)
+    const dueDate = new Date(parseInt(year), parseInt(month), 10);
+
     // Check if bill already exists
     const existingBill = await Bill.findOne({
       tenant: tenantId,
@@ -2656,20 +2707,52 @@ cron.schedule('0 9 * * *', async () => {
   }
 });
 
+// Serve static files in production (for single-service deployment)
+if (process.env.NODE_ENV === 'production') {
+  console.log('🏭 Production mode: Serving static files from dist/');
+  app.use(express.static(path.join(__dirname, 'dist')));
+  
+  // Catch-all handler for React Router (must be after API routes)
+  app.get('*', (req, res) => {
+    // Don't serve index.html for API routes
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    res.sendFile(path.join(__dirname, 'dist/index.html'));
+  });
+}
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    environment: process.env.NODE_ENV || 'development',
+    port: PORT
   });
 });
 
 // Start server
 server.listen(PORT, async () => {
+  // Get server host information for production deployment
+  const isProduction = process.env.NODE_ENV === 'production';
+  const baseUrl = process.env.RENDER_EXTERNAL_URL || process.env.BASE_URL || `http://localhost:${PORT}`;
+  const wsUrl = baseUrl.replace('http', 'ws').replace('https', 'wss');
+  
   console.log('🚀 Rental Management Server Started!');
-  console.log(`📡 HTTP Server: http://localhost:${PORT}`);
-  console.log(`🔗 WebSocket Server: ws://localhost:${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📡 HTTP Server: ${baseUrl}`);
+  console.log(`🔗 WebSocket Server: ${wsUrl}`);
+  console.log(`🔌 Port: ${PORT}`);
+  
+  if (isProduction) {
+    console.log('🏭 Production mode - CORS restrictions active');
+    console.log(`💻 Frontend should connect to: ${wsUrl}`);
+  } else {
+    console.log('🔧 Development mode - CORS allows all origins');
+  }
+  
   console.log('');
   console.log('Available endpoints:');
   console.log('  Authentication:');

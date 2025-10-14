@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { getApiUrl } from '../utils/api';
 
-// API base URL
-const API_BASE_URL = 'http://localhost:3001/api';
+// Use dynamic API URL
 
 // Custom hook for managing owner dashboard data
 export const useOwnerDashboardData = () => {
@@ -33,7 +33,7 @@ export const useOwnerDashboardData = () => {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
 
-      const response = await fetch(`${API_BASE_URL}/admin/tenants`, {
+      const response = await fetch(`${getApiUrl()}/admin/tenants`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -56,7 +56,7 @@ export const useOwnerDashboardData = () => {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
 
-      const response = await fetch(`${API_BASE_URL}/admin/bills`, {
+      const response = await fetch(`${getApiUrl()}/admin/bills`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -82,7 +82,7 @@ export const useOwnerDashboardData = () => {
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
 
-      const response = await fetch(`${API_BASE_URL}/admin/payments/summary?month=${currentMonth}&year=${currentYear}`, {
+      const response = await fetch(`${getApiUrl()}/admin/payments/summary?month=${currentMonth}&year=${currentYear}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -105,7 +105,7 @@ export const useOwnerDashboardData = () => {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
 
-      const response = await fetch(`${API_BASE_URL}/admin/rooms`, {
+      const response = await fetch(`${getApiUrl()}/admin/rooms`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

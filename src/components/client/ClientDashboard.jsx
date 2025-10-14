@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useRealTimeNotifications } from '../../context/RealTimeNotificationContext';
+import { getApiUrl } from '../../utils/api';
 import SlidingNavbar from '../SlidingNavbar';
 import Modal from '../Modal';
 import './ClientDashboard.css';
@@ -52,7 +53,7 @@ const ClientDashboard = ({ user, onLogout }) => {
       
       console.log('🔑 Using token:', token.substring(0, 20) + '...');
       
-      const response = await fetch('http://localhost:3001/api/tenant/dashboard', {
+      const response = await fetch(`${getApiUrl()}/tenant/dashboard`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -84,7 +85,7 @@ const ClientDashboard = ({ user, onLogout }) => {
   const generatePDF = async (bill) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/tenant/bills/${bill._id}/pdf`, {
+      const response = await fetch(`${getApiUrl()}/tenant/bills/${bill._id}/pdf`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -135,7 +136,7 @@ const ClientDashboard = ({ user, onLogout }) => {
       if (paymentMethod === 'razorpay') {
         // Create Razorpay order
         const safeAmount = Math.round((bill.totalAmount || 0) + (bill.penalty?.amount || 0));
-        const orderResponse = await fetch('http://localhost:3001/api/payments/create-order', {
+        const orderResponse = await fetch(`${getApiUrl()}/payments/create-order`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -205,7 +206,7 @@ const ClientDashboard = ({ user, onLogout }) => {
           },
           handler: async function (response) {
             // Verify payment
-            const verifyResponse = await fetch('http://localhost:3001/api/payments/verify', {
+            const verifyResponse = await fetch(`${getApiUrl()}/payments/verify`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -248,7 +249,7 @@ const ClientDashboard = ({ user, onLogout }) => {
       } else if (paymentMethod === 'upi') {
         // UPI-only flow via Razorpay Checkout (with QR enabled)
         const safeAmount = Math.round((bill.totalAmount || 0) + (bill.penalty?.amount || 0));
-        const orderResponse = await fetch('http://localhost:3001/api/payments/create-order', {
+        const orderResponse = await fetch(`${getApiUrl()}/payments/create-order`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -302,7 +303,7 @@ const ClientDashboard = ({ user, onLogout }) => {
             }
           },
           handler: async function (response) {
-            const verifyResponse = await fetch('http://localhost:3001/api/payments/verify', {
+            const verifyResponse = await fetch(`${getApiUrl()}/payments/verify`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -339,7 +340,7 @@ const ClientDashboard = ({ user, onLogout }) => {
         }
       } else {
         // Other payment methods
-        const response = await fetch('http://localhost:3001/api/payments/record', {
+        const response = await fetch(`${getApiUrl()}/payments/record`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,

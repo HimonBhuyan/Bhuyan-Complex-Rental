@@ -39,6 +39,7 @@ import {
 import SlidingNavbar from "../SlidingNavbar";
 import Modal from "../Modal";
 import OwnerProfile from "./OwnerProfile";
+import { getApiUrl } from '../../utils/api';
 import "./OwnerDashboard.css";
 
 const OwnerDashboard = ({ onLogout }) => {
@@ -214,7 +215,7 @@ const OwnerDashboard = ({ onLogout }) => {
       try {
         const token = localStorage.getItem("token");
         if (!token) return;
-        const resp = await fetch("http://localhost:3001/api/admin/rooms", {
+        const resp = await fetch(`${getApiUrl()}/admin/rooms`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (resp.ok) {
@@ -289,7 +290,7 @@ const OwnerDashboard = ({ onLogout }) => {
         rent: Number(roomForm.rent) || 0,
         securityDeposit: Number(roomForm.securityDeposit) || 0,
       };
-      const resp = await fetch("http://localhost:3001/api/admin/rooms", {
+      const resp = await fetch(`${getApiUrl()}/admin/rooms`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -329,7 +330,7 @@ const OwnerDashboard = ({ onLogout }) => {
         securityDepositPaid: Number(assignForm.securityDepositPaid) || 0,
       };
       const resp = await fetch(
-        `http://localhost:3001/api/admin/rooms/${assignForm.roomId}/assign-tenant`,
+        `${getApiUrl()}/admin/rooms/${assignForm.roomId}/assign-tenant`,
         {
           method: "POST",
           headers: {
@@ -348,7 +349,7 @@ const OwnerDashboard = ({ onLogout }) => {
         password: data.tenant.generatedPassword,
       });
       // refresh rooms list to reflect occupied
-      const roomsResp = await fetch("http://localhost:3001/api/admin/rooms", {
+      const roomsResp = await fetch(`${getApiUrl()}/admin/rooms`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (roomsResp.ok) {

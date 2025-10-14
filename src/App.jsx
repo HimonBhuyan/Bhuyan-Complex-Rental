@@ -9,8 +9,6 @@ import AdminDashboard from './components/admin/AdminDashboard'
 import OwnerDashboard from './components/owner/OwnerDashboard'
 import Help from './components/Help'
 import RazorpayScript from './components/RazorpayScript'
-import ClientDiagnostic from './components/ClientDiagnostic'
-import ProfileDiagnostic from './components/ProfileDiagnostic'
 import { UserProvider, useUser } from './context/UserContext'
 import { OwnerProvider } from './context/OwnerContext'
 import { RealTimeNotificationProvider } from './context/RealTimeNotificationContext'
@@ -61,14 +59,6 @@ const AppContent = () => {
           <Route 
             path="/owner" 
             element={user && user.role === 'owner' ? <OwnerDashboard onLogout={logout} /> : <Navigate to="/login" />} 
-          />
-          <Route 
-            path="/diagnostic" 
-            element={<ClientDiagnostic />} 
-          />
-          <Route 
-            path="/profile-diagnostic" 
-            element={<ProfileDiagnostic />} 
           />
           <Route 
             path="/" 

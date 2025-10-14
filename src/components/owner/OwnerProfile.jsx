@@ -30,6 +30,7 @@ import {
   Shield,
   CheckCircle
 } from 'lucide-react'
+import { getApiUrl } from '../../utils/api'
 import './OwnerProfile.css'
 
 // Utility: build a Blob URL from a data URL and open or download
@@ -161,7 +162,7 @@ const OwnerProfile = ({ onBack, isDarkTheme }) => {
         const token = localStorage.getItem('token')
         if (token) {
           console.log('🌍 [OwnerProfile] Loading from backend...')
-          const response = await fetch('http://localhost:3001/api/owner/profile', {
+          const response = await fetch(`${getApiUrl()}/owner/profile`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -377,7 +378,7 @@ const OwnerProfile = ({ onBack, isDarkTheme }) => {
       console.log('🔑 [OwnerProfile] Token found, preparing data...')
       
       // Make API call to save profile data
-      const response = await fetch('http://localhost:3001/api/owner/profile', {
+      const response = await fetch(`${getApiUrl()}/owner/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -518,7 +519,7 @@ const OwnerProfile = ({ onBack, isDarkTheme }) => {
         try {
           const token = localStorage.getItem('token')
           if (token) {
-            const response = await fetch('http://localhost:3001/api/owner/profile', {
+            const response = await fetch(`${getApiUrl()}/owner/profile`, {
               method: 'PUT',
               headers: {
                 'Content-Type': 'application/json',
@@ -603,7 +604,7 @@ const OwnerProfile = ({ onBack, isDarkTheme }) => {
       try {
         const token = localStorage.getItem('token')
         if (token) {
-          const response = await fetch('http://localhost:3001/api/owner/profile', {
+          const response = await fetch(`${getApiUrl()}/owner/profile`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -689,7 +690,7 @@ const OwnerProfile = ({ onBack, isDarkTheme }) => {
       try {
         const token = localStorage.getItem('token')
         if (token) {
-          const response = await fetch('http://localhost:3001/api/owner/profile', {
+          const response = await fetch(`${getApiUrl()}/owner/profile`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',

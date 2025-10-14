@@ -10,6 +10,7 @@ import { useUser } from '../context/UserContext'
 import { useOwner } from '../context/OwnerContext'
 import { useRealTimeNotifications } from '../context/RealTimeNotificationContext'
 import { tenants, bills, getTotalRevenue, getPendingRevenue, paymentHistory } from '../data/mockData'
+import { getApiUrl, apiRequest } from '../utils/api'
 import './Modal.css'
 
 // Payment Monitoring Dashboard Component
@@ -33,7 +34,7 @@ const PaymentMonitoringDashboard = ({ onClose }) => {
       }
       
       console.log('Fetching payment summary for:', selectedMonth, selectedYear)
-      const response = await fetch(`http://localhost:3001/api/admin/payments/summary?month=${selectedMonth}&year=${selectedYear}`, {
+      const response = await fetch(`${getApiUrl()}/admin/payments/summary?month=${selectedMonth}&year=${selectedYear}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       
@@ -94,7 +95,7 @@ const PaymentMonitoringDashboard = ({ onClose }) => {
         return
       }
       
-      const response = await fetch(`http://localhost:3001/api/admin/payments/recent?month=${selectedMonth}&year=${selectedYear}&limit=10`, {
+      const response = await fetch(`${getApiUrl()}/admin/payments/recent?month=${selectedMonth}&year=${selectedYear}&limit=10`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       
@@ -193,7 +194,7 @@ const PaymentMonitoringDashboard = ({ onClose }) => {
         return
       }
       
-      const response = await fetch(`http://localhost:3001/api/admin/payments/export?month=${selectedMonth}&year=${selectedYear}`, {
+      const response = await fetch(`${getApiUrl()}/admin/payments/export?month=${selectedMonth}&year=${selectedYear}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       
@@ -577,7 +578,7 @@ const ManageBillsModal = ({ onClose }) => {
       try {
         setLoading(true)
         const token = localStorage.getItem('token')
-        const response = await fetch('http://localhost:3001/api/admin/tenants-for-billing', {
+        const response = await fetch(`${getApiUrl()}/admin/tenants-for-billing`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         if (response.ok) {
@@ -610,7 +611,7 @@ const ManageBillsModal = ({ onClose }) => {
       if (filters.year) queryParams.append('year', filters.year)
       if (filters.status !== 'all') queryParams.append('status', filters.status)
 
-      const response = await fetch(`http://localhost:3001/api/admin/bills?${queryParams}`, {
+      const response = await fetch(`${getApiUrl()}/admin/bills?${queryParams}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (response.ok) {
@@ -667,7 +668,7 @@ const ManageBillsModal = ({ onClose }) => {
         commonAreaCharges: parseFloat(billForm.commonAreaCharges) || 0
       }
 
-      const response = await fetch('http://localhost:3001/api/admin/bills/generate-individual', {
+      const response = await fetch(`${getApiUrl()}/admin/bills/generate-individual`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -707,7 +708,7 @@ const ManageBillsModal = ({ onClose }) => {
     try {
       setLoading(true)
       const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:3001/api/admin/payments/${paymentId}/verify`, {
+      const response = await fetch(`${getApiUrl()}/admin/payments/${paymentId}/verify`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -735,7 +736,7 @@ const ManageBillsModal = ({ onClose }) => {
     try {
       setLoading(true)
       const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:3001/api/admin/bills/${billId}`, {
+      const response = await fetch(`${getApiUrl()}/admin/bills/${billId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`
@@ -1312,7 +1313,7 @@ const Modal = ({ isOpen, onClose, type, data: _data, customContent }) => {
         setRoomsLoading(true)
         const token = localStorage.getItem('token')
         if (!token) return
-        const resp = await fetch('http://localhost:3001/api/admin/rooms', {
+        const resp = await fetch(`${getApiUrl()}/admin/rooms`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         if (resp.ok) {
@@ -1355,7 +1356,7 @@ const Modal = ({ isOpen, onClose, type, data: _data, customContent }) => {
           }
           
           console.log('📡 Making API call to fetch tenants')
-          const resp = await fetch('http://localhost:3001/api/admin/tenants', { 
+          const resp = await fetch(`${getApiUrl()}/admin/tenants`, { 
             headers: { Authorization: `Bearer ${token}` } 
           })
           
@@ -1447,7 +1448,7 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
         setNotificationTenantsLoading(true)
         const token = localStorage.getItem('token')
         if (!token) return
-        const resp = await fetch('http://localhost:3001/api/admin/tenants', { headers: { Authorization: `Bearer ${token}` } })
+        const resp = await fetch(`${getApiUrl()}/admin/tenants`, { headers: { Authorization: `Bearer ${token}` } })
         if (resp.ok) {
           const data = await resp.json()
           // Transform tenants to match expected format
@@ -1513,7 +1514,7 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
       setSavingEdits(true)
       const token = localStorage.getItem('token')
       // Update room
-      const roomResp = await fetch(`http://localhost:3001/api/admin/rooms/${editingRoom._id}`, {
+      const roomResp = await fetch(`${getApiUrl()}/admin/rooms/${editingRoom._id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1536,7 +1537,7 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
 
       // Update tenant if present
       if (tenantForm.tenantId) {
-        const tResp = await fetch(`http://localhost:3001/api/admin/tenants/${tenantForm.tenantId}`, {
+        const tResp = await fetch(`${getApiUrl()}/admin/tenants/${tenantForm.tenantId}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -1560,7 +1561,7 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
       // Refresh rooms
       try {
         setRoomsLoading(true)
-        const listResp = await fetch('http://localhost:3001/api/admin/rooms', { headers: { Authorization: `Bearer ${token}` } })
+        const listResp = await fetch(`${getApiUrl()}/admin/rooms`, { headers: { Authorization: `Bearer ${token}` } })
         if (listResp.ok) {
           const listData = await listResp.json()
           setRoomsList(listData.rooms || [])
@@ -1711,7 +1712,7 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
                   let createdRoomObj = null
                   let respRoom
                   try {
-                    respRoom = await fetch('http://localhost:3001/api/admin/rooms', {
+                    respRoom = await fetch(`${getApiUrl()}/admin/rooms`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                       body: JSON.stringify(roomPayload)
@@ -1728,7 +1729,7 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
                     const msg = (roomData && (roomData.error || roomData.message)) || ''
                     if (msg.toLowerCase().includes('room number already exists')) {
                       // load rooms and find the existing one
-                      const listResp = await fetch('http://localhost:3001/api/admin/rooms', { headers: { Authorization: `Bearer ${token}` } })
+                      const listResp = await fetch(`${getApiUrl()}/admin/rooms`, { headers: { Authorization: `Bearer ${token}` } })
                       const listData = await listResp.json()
                       const found = (listData.rooms || []).find(r => (r.roomNumber || '').toString().toLowerCase() === roomPayload.roomNumber.toLowerCase())
                       if (!found) throw new Error('Room number already exists, but could not fetch existing room')
@@ -1748,7 +1749,7 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
                   setAssignStatus('assigningTenant')
                   let respAssign
                   try {
-                    respAssign = await fetch(`http://localhost:3001/api/admin/rooms/${createdRoomId}/assign-tenant`, {
+                    respAssign = await fetch(`${getApiUrl()}/admin/rooms/${createdRoomId}/assign-tenant`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                       body: JSON.stringify(tenantPayload)
@@ -2038,7 +2039,7 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
                                 const token = localStorage.getItem('token')
                                 const payload = { name: editForm.name, email: editForm.email, phone: editForm.phone }
                                 if (editForm.roomId) payload.roomId = editForm.roomId
-                                const resp = await fetch(`http://localhost:3001/api/admin/tenants/${tenant._id}`, { 
+                                const resp = await fetch(`${getApiUrl()}/admin/tenants/${tenant._id}`, {
                                   method: 'PUT', 
                                   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, 
                                   body: JSON.stringify(payload) 
@@ -2076,7 +2077,7 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
                                     toast.error('Please login to download reports')
                                     return
                                   }
-                                  const response = await fetch(`http://localhost:3001/api/admin/tenants/${tenant._id}/payment-report`, {
+                                  const response = await fetch(`${getApiUrl()}/admin/tenants/${tenant._id}/payment-report`, {
                                     headers: { 'Authorization': `Bearer ${token}` }
                                   })
                                   if (response.ok) {
@@ -2176,7 +2177,7 @@ t.phone, profilePhoto: p.profilePhoto || t.profilePhoto, room: p.room || t.room 
                                 if (!confirm(`Are you sure you want to remove ${tenant.name}? This will vacate their room.`)) return
                                 try {
                                   const token = localStorage.getItem('token')
-                                  const resp = await fetch(`http://localhost:3001/api/admin/tenants/${tenant._id}`, { 
+                                  const resp = await fetch(`${getApiUrl()}/admin/tenants/${tenant._id}`, {
                                     method: 'DELETE', 
                                     headers: { Authorization: `Bearer ${token}` } 
                                   })
