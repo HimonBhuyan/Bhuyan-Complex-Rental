@@ -92,54 +92,42 @@ const generateResetToken = () => {
   return crypto.randomBytes(32).toString('hex');
 };
 
-// Fast email delivery with immediate fallback
+// Send verification code email (synchronous - wait for email delivery)
 const sendVerificationCode = async (email, userType = 'user') => {
-  const code = generateVerificationCode();
-  const resetToken = generateResetToken();
-  const expiryTime = new Date(Date.now() + 15 * 60 * 1000);
+  try {
+    const code = generateVerificationCode();
+    const resetToken = generateResetToken();
+    const expiryTime = new Date(Date.now() + 15 * 60 * 1000);
 
-  // Store verification code with expiry
-  verificationCodes.set(email, {
-    code,
-    resetToken,
-    expiryTime,
-    attempts: 0,
-    maxAttempts: 3
-  });
-
-  // Fast path: Always provide console fallback immediately
-  const logCode = () => {
-    console.log('\n' + '='.repeat(60));
-    console.log('🔑 PASSWORD RESET CODE');
-    console.log('='.repeat(60));
-    console.log(`📧 Email: ${email}`);
-    console.log(`🔑 Code: ${code}`);
-    console.log(`⏰ Expires: ${expiryTime.toLocaleString()}`);
-    console.log(`👤 Type: ${userType}`);
-    console.log('='.repeat(60) + '\n');
-  };
-
-  // Always log the code for admin access
-  logCode();
-
-  // Quick email validation
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS || 
-      !process.env.EMAIL_USER.includes('@') || 
-      process.env.EMAIL_PASS.length < 8) {
-    return {
-      success: true,
-      message: 'Reset code generated. Admin can provide the code to user.',
+    // Store verification code with expiry
+    verificationCodes.set(email, {
+      code,
       resetToken,
-      devMode: true,
-      code
-    };
-  }
+      expiryTime,
+      attempts: 0,
+      maxAttempts: 3
+    });
 
-  // Try to send email with retry mechanism
-  setImmediate(async () => {
-    const maxRetries = 3;
-    let lastError = null;
-    
+    // Check if email is configured
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      // Development fallback - log the code to console
+      console.log('\n' + '='.repeat(60));
+      console.log('📧 EMAIL NOT CONFIGURED - DEVELOPMENT MODE');
+      console.log('='.repeat(60));
+      console.log(`🔑 Verification Code for ${email}: ${code}`);
+      console.log(`⏰ Code expires at: ${expiryTime.toLocaleString()}`);
+      console.log(`👤 User type: ${userType}`);
+      console.log('='.repeat(60) + '\n');
+      
+      return {
+        success: true,
+        message: 'Verification code generated (check server console)',
+        resetToken,
+        devMode: true,
+        code
+      };
+    }
+
     // Email content
     const mailOptions = {
       from: {
@@ -147,101 +135,166 @@ const sendVerificationCode = async (email, userType = 'user') => {
         address: process.env.EMAIL_USER
       },
       to: email,
-      subject: `Password Reset Code: ${code} - Bhuyan Complex`,
+      subject: 'Password Reset Verification Code - Bhuyan Complex',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: #667eea; color: white; padding: 20px; text-align: center; border-radius: 10px;">
-            <h1>🏢 Password Reset</h1>
-            <p>Bhuyan Complex Management</p>
-          </div>
-          <div style="padding: 20px; background: #f9f9f9; margin: 20px 0; text-align: center;">
-            <h2>Your verification code is:</h2>
-            <div style="font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 4px; font-family: monospace;">
-              ${code}
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f4f4f4;">
+          <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1);">
+            <div style="text-align: center; margin-bottom: 30px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px;">
+              <h1 style="margin: 0; font-size: 24px;">🏢 Password Reset Request</h1>
+              <p style="margin: 5px 0 0 0;">Bhuyan Complex Management System</p>
             </div>
-            <p style="color: #666; margin-top: 20px;">This code expires in 15 minutes</p>
+            
+            <h2>Hello${userType === 'owner' ? ' Building Owner' : ' Tenant'},</h2>
+            
+            <p>We received a request to reset your password for your account. Use the verification code below to proceed with resetting your password:</p>
+            
+            <div style="text-align: center; margin: 30px 0; padding: 20px; background: #f8f9ff; border: 2px dashed #667eea; border-radius: 10px;">
+              <div style="font-size: 36px; font-weight: bold; color: #667eea; letter-spacing: 8px; font-family: 'Courier New', monospace;">${code}</div>
+              <p style="margin: 10px 0 0 0;"><strong>Your verification code</strong></p>
+            </div>
+            
+            <div style="background: #e3f2fd; padding: 15px; border-left: 4px solid #2196f3; margin: 20px 0; border-radius: 4px;">
+              <h3 style="margin: 0 0 10px 0;">📋 Instructions:</h3>
+              <ol style="margin: 0;">
+                <li>Enter this 6-digit code in the password reset form</li>
+                <li>Create your new password</li>
+                <li>Confirm your new password</li>
+              </ol>
+            </div>
+            
+            <div style="background: #fff3e0; padding: 15px; border-left: 4px solid #ff9800; margin: 20px 0; border-radius: 4px;">
+              <h3 style="margin: 0 0 10px 0;">⚠️ Security Information:</h3>
+              <ul style="margin: 0;">
+                <li><strong>This code expires in 15 minutes</strong></li>
+                <li>Don't share this code with anyone</li>
+                <li>If you didn't request this reset, please ignore this email</li>
+                <li>You have 3 attempts to enter the correct code</li>
+              </ul>
+            </div>
+            
+            <p>If you're having trouble with the reset process, please contact the building management for assistance.</p>
+            
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666;">
+              <p><strong>Bhuyan Complex Management System</strong></p>
+              <p>This is an automated email. Please do not reply to this message.</p>
+              <p>Generated on: ${new Date().toLocaleString()}</p>
+            </div>
           </div>
-          <p>Hello ${userType === 'owner' ? 'Building Owner' : 'Tenant'},</p>
-          <p>Enter this code in the password reset form to proceed.</p>
-          <p style="color: #666; font-size: 12px; margin-top: 30px;">Generated: ${new Date().toLocaleString()}</p>
         </div>
       `,
-      text: `Password Reset Code: ${code}\n\nHello ${userType === 'owner' ? 'Building Owner' : 'Tenant'},\n\nYour verification code is: ${code}\n\nThis code expires in 15 minutes.\n\nBhuyan Complex Management`
+      text: `
+        Password Reset Verification Code - Bhuyan Complex Management
+
+        Hello${userType === 'owner' ? ' Building Owner' : ' Tenant'},
+
+        We received a request to reset your password. Your verification code is:
+
+        ${code}
+
+        This code expires in 15 minutes. Enter this code in the password reset form to proceed.
+
+        Security Information:
+        - Don't share this code with anyone
+        - If you didn't request this reset, please ignore this email
+        - You have 3 attempts to enter the correct code
+
+        Best regards,
+        Bhuyan Complex Management System
+      `
     };
 
-    // Try different email configurations
+    // Try to send email with multiple configurations
+    console.log(`📧 Attempting to send verification code to ${email}...`);
+    
     const emailConfigs = [
-      // Config 1: SSL Gmail
-      () => nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-        tls: { rejectUnauthorized: false }
-      }),
-      // Config 2: TLS Gmail
-      () => nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-        tls: { rejectUnauthorized: false }
-      }),
+      // Config 1: Gmail with SSL (most reliable for cloud)
+      {
+        name: 'Gmail SSL',
+        config: {
+          host: 'smtp.gmail.com',
+          port: 465,
+          secure: true,
+          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+          tls: { rejectUnauthorized: false }
+        }
+      },
+      // Config 2: Gmail with TLS  
+      {
+        name: 'Gmail TLS',
+        config: {
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false,
+          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+          tls: { rejectUnauthorized: false }
+        }
+      },
       // Config 3: Gmail service
-      () => nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-      })
+      {
+        name: 'Gmail Service',
+        config: {
+          service: 'gmail',
+          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+        }
+      }
     ];
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
+    let lastError = null;
+    
+    for (const { name, config } of emailConfigs) {
       try {
-        console.log(`📧 Email attempt ${attempt + 1}/${maxRetries} to ${email}...`);
+        console.log(`🔍 Trying ${name}...`);
+        const transporter = nodemailer.createTransport(config);
         
-        // Try each configuration
-        for (let configIndex = 0; configIndex < emailConfigs.length; configIndex++) {
-          try {
-            const transporter = emailConfigs[configIndex]();
-            
-            // Send with 10 second timeout
-            const emailPromise = transporter.sendMail(mailOptions);
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Email timeout')), 10000)
-            );
-            
-            await Promise.race([emailPromise, timeoutPromise]);
-            console.log(`✅ Email sent successfully to ${email} (config ${configIndex + 1})`);
-            return; // Success - exit function
-            
-          } catch (configError) {
-            console.log(`⚠️ Config ${configIndex + 1} failed: ${configError.message}`);
-            lastError = configError;
-          }
-        }
+        // Send email with timeout
+        const emailPromise = transporter.sendMail(mailOptions);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Email timeout after 15 seconds')), 15000)
+        );
         
-        // If all configs failed, wait before retry
-        if (attempt < maxRetries - 1) {
-          console.log(`🔄 Waiting 2 seconds before retry...`);
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
+        const result = await Promise.race([emailPromise, timeoutPromise]);
         
-      } catch (attemptError) {
-        lastError = attemptError;
-        console.log(`⚠️ Attempt ${attempt + 1} failed: ${attemptError.message}`);
+        console.log(`✅ Email sent successfully to ${email} using ${name}`);
+        console.log(`📬 Message ID: ${result.messageId}`);
+        
+        return {
+          success: true,
+          message: 'Verification code sent to your email',
+          resetToken,
+          method: name
+        };
+        
+      } catch (error) {
+        console.log(`⚠️ ${name} failed: ${error.message}`);
+        lastError = error;
+        continue;
       }
     }
     
-    // All attempts failed
-    console.log(`❌ All email attempts failed for ${email}. Last error: ${lastError?.message}`);
-  });
-
-  // Return immediately with success (don't wait for email)
-  return {
-    success: true,
-    message: 'Reset code generated. Check your email or contact admin for the code.',
-    resetToken,
-    emailAttempted: true
-  };
+    // All email methods failed - fall back to console
+    console.log(`❌ All email methods failed. Falling back to console mode.`);
+    console.log('\n' + '='.repeat(60));
+    console.log('📧 EMAIL DELIVERY FAILED - FALLBACK MODE');
+    console.log('='.repeat(60));
+    console.log(`🔑 Verification Code for ${email}: ${code}`);
+    console.log(`⏰ Code expires at: ${expiryTime.toLocaleString()}`);
+    console.log(`👤 User type: ${userType}`);
+    console.log(`❌ Last error: ${lastError?.message}`);
+    console.log('='.repeat(60) + '\n');
+    
+    return {
+      success: true,
+      message: 'Verification code generated. Please contact admin for the code.',
+      resetToken,
+      fallbackMode: true,
+      code,
+      error: lastError?.message
+    };
+    
+  } catch (error) {
+    console.error('❌ Error in sendVerificationCode:', error);
+    throw new Error('Failed to process verification request');
+  }
 };
 
 // Verify the code
