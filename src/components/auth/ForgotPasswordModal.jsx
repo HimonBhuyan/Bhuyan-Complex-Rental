@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { Mail, Lock, Eye, EyeOff, X, ArrowRight, ArrowLeft, Shield } from 'lucide-react'
+import { getApiUrl } from '../../utils/api'
 import './ForgotPasswordModal.css'
 
 const ForgotPasswordModal = ({ isOpen, onClose }) => {
@@ -49,7 +50,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
     setLoading(true)
     
     try {
-      const response = await fetch('http://localhost:3001/api/auth/forgot-password', {
+      const response = await fetch(`${getApiUrl()}/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -98,7 +99,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
     setLoading(true)
     
     try {
-      const response = await fetch('http://localhost:3001/api/auth/verify-reset-code', {
+      const response = await fetch(`${getApiUrl()}/auth/verify-reset-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -147,7 +148,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
     setLoading(true)
     
     try {
-      const response = await fetch('http://localhost:3001/api/auth/reset-password', {
+      const response = await fetch(`${getApiUrl()}/auth/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -198,7 +199,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
   const resendCode = async () => {
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:3001/api/auth/forgot-password', {
+      const response = await fetch(`${getApiUrl()}/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

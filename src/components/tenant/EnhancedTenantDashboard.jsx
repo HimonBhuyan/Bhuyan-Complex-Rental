@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { useUser } from '../../context/UserContext'
 import { useRealTimeNotifications } from '../../context/RealTimeNotificationContext'
+import { getApiUrl } from '../../utils/api'
 import { 
   User, 
   CreditCard, 
@@ -54,7 +55,7 @@ const EnhancedTenantDashboard = ({ onLogout }) => {
       const token = localStorage.getItem('token')
       
       // Load dashboard data
-      const dashboardResponse = await fetch('http://localhost:3001/api/tenant/dashboard', {
+      const dashboardResponse = await fetch(`${getApiUrl()}/tenant/dashboard`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (dashboardResponse.ok) {
@@ -63,7 +64,7 @@ const EnhancedTenantDashboard = ({ onLogout }) => {
       }
 
       // Load current bills
-      const billsResponse = await fetch('http://localhost:3001/api/tenant/bills?status=pending,overdue', {
+      const billsResponse = await fetch(`${getApiUrl()}/tenant/bills?status=pending,overdue`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (billsResponse.ok) {
@@ -72,7 +73,7 @@ const EnhancedTenantDashboard = ({ onLogout }) => {
       }
 
       // Load previous bills
-      const previousResponse = await fetch('http://localhost:3001/api/tenant/previous-bills', {
+      const previousResponse = await fetch(`${getApiUrl()}/tenant/previous-bills`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (previousResponse.ok) {
@@ -108,7 +109,7 @@ const EnhancedTenantDashboard = ({ onLogout }) => {
   const handlePayBill = async (bill) => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:3001/api/payments/create-order', {
+      const response = await fetch(`${getApiUrl()}/payments/create-order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -193,7 +194,7 @@ const EnhancedTenantDashboard = ({ onLogout }) => {
   const handlePaymentSuccess = async (bill, razorpayResponse) => {
     try {
       const token = localStorage.getItem('token')
-      const verifyResponse = await fetch('http://localhost:3001/api/payments/verify', {
+      const verifyResponse = await fetch(`${getApiUrl()}/payments/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -257,7 +258,7 @@ const EnhancedTenantDashboard = ({ onLogout }) => {
   const handleDownloadPDF = async (bill) => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:3001/api/tenant/bills/${bill._id}/pdf`, {
+      const response = await fetch(`${getApiUrl()}/tenant/bills/${bill._id}/pdf`, {
         headers: {
           Authorization: `Bearer ${token}`
         }

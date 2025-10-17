@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { toast } from 'react-hot-toast'
+import { getApiUrl } from '../utils/api'
 
 const NotificationContext = createContext()
 
@@ -100,7 +101,7 @@ export const NotificationProvider = ({ children }) => {
         }
         
         // Try to fetch from the notification API for cross-browser sync
-        fetch('http://localhost:3001/api/notifications', { 
+        fetch(`${getApiUrl()}/notifications`, {
           cache: 'no-cache',
           headers: {
             'Cache-Control': 'no-cache',
@@ -190,7 +191,7 @@ export const NotificationProvider = ({ children }) => {
     
     // Also try to save to API for cross-browser sync
     try {
-      fetch('http://localhost:3001/api/notifications', {
+      fetch(`${getApiUrl()}/notifications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -338,7 +339,7 @@ export const NotificationProvider = ({ children }) => {
     
     // Delete from API for cross-browser sync
     try {
-      fetch(`http://localhost:3001/api/notifications/${notificationId}`, {
+      fetch(`${getApiUrl()}/notifications/${notificationId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

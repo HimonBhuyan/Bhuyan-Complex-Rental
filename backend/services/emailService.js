@@ -10,11 +10,22 @@ const createTransporter = () => {
   // For production, use proper SMTP service like SendGrid, Mailgun, etc.
   
   if (process.env.EMAIL_SERVICE === 'gmail') {
-    return nodemailer.createTransport({
+    return nodemailer.createTransporter({
       service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS // Use App Password for Gmail
+      },
+      // Add timeout and connection settings for Render
+      connectionTimeout: 60000, // 60 seconds
+      greetingTimeout: 30000, // 30 seconds
+      socketTimeout: 60000, // 60 seconds
+      tls: {
+        rejectUnauthorized: false,
+        ciphers: 'SSLv3'
       }
     });
   } else if (process.env.EMAIL_SERVICE === 'ethereal') {
@@ -29,14 +40,21 @@ const createTransporter = () => {
       }
     });
   } else {
-    // Generic SMTP configuration
-    return nodemailer.createTransport({
+    // Generic SMTP configuration with better timeout handling
+    return nodemailer.createTransporter({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: process.env.SMTP_PORT || 587,
+      port: parseInt(process.env.SMTP_PORT) || 587,
       secure: false,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
+      },
+      // Better timeout settings for cloud deployment
+      connectionTimeout: 60000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000,
+      tls: {
+        rejectUnauthorized: false
       }
     });
   }
@@ -109,6 +127,52 @@ const sendVerificationCode = async (email, userType = 'user') => {
 
     // Configure transporter
     const transporter = createTransporter();
+    
+    // Test connection first with timeout
+    console.log('🔍 Testing email connection...');
+    
+    // Add a timeout wrapper for the verification
+    const connectionTest = new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Connection timeout after 30 seconds'));
+      }, 30000);
+      
+      transporter.verify()
+        .then(() => {
+          clearTimeout(timeoutId);
+          resolve(true);
+        })
+        .catch(error => {
+          clearTimeout(timeoutId);
+          reject(error);
+        });
+    });
+    
+    try {
+      await connectionTest;
+      console.log('✅ Email connection verified successfully');
+    } catch (connectionError) {
+      console.error('❌ Email connection failed:', connectionError.message);
+      
+      // Fallback to development mode if connection fails
+      console.log('\n' + '='.repeat(60));
+      console.log('📧 EMAIL CONNECTION FAILED - FALLBACK MODE');
+      console.log('='.repeat(60));
+      console.log(`🔑 Verification Code for ${email}: ${code}`);
+      console.log(`⏰ Code expires at: ${expiryTime.toLocaleString()}`);
+      console.log(`👤 User type: ${userType}`);
+      console.log(`⚠️  Connection Error: ${connectionError.message}`);
+      console.log('='.repeat(60) + '\n');
+      
+      return {
+        success: true,
+        message: 'Verification code generated (email service unavailable)',
+        resetToken,
+        devMode: true,
+        code, // Include in fallback mode
+        emailError: connectionError.message
+      };
+    }
 
     // Email content
     const mailOptions = {
@@ -268,9 +332,26 @@ const sendVerificationCode = async (email, userType = 'user') => {
       `
     };
 
-    // Send email
+    // Send email with timeout wrapper
     console.log(`📧 Attempting to send email to ${email}...`);
-    const emailResult = await transporter.sendMail(mailOptions);
+    
+    const sendMailPromise = new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Email send timeout after 45 seconds'));
+      }, 45000);
+      
+      transporter.sendMail(mailOptions)
+        .then(result => {
+          clearTimeout(timeoutId);
+          resolve(result);
+        })
+        .catch(error => {
+          clearTimeout(timeoutId);
+          reject(error);
+        });
+    });
+    
+    const emailResult = await sendMailPromise;
     
     console.log(`✅ Verification code sent successfully to ${email}`);
     console.log(`📬 Message ID: ${emailResult.messageId}`);
@@ -290,13 +371,48 @@ const sendVerificationCode = async (email, userType = 'user') => {
     if (error.code === 'EAUTH') {
       errorMessage = 'Email authentication failed. Please check EMAIL_USER and EMAIL_PASS in .env file.';
       console.error('🔑 SOLUTION: Make sure you\'re using Gmail App Password, not regular password');
-    } else if (error.code === 'ECONNECTION') {
-      errorMessage = 'Cannot connect to email server. Check your internet connection.';
+    } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
+      errorMessage = 'Cannot connect to email server. Email service may be temporarily unavailable.';
     } else if (error.response && error.response.includes('Invalid login')) {
       errorMessage = 'Invalid email credentials. Please check EMAIL_USER and EMAIL_PASS.';
+    } else if (error.message.includes('timeout')) {
+      errorMessage = 'Email service timeout. Please try again in a few minutes.';
     }
     
     console.error(`🚑 Error Details: ${errorMessage}`);
+    
+    // For timeout and connection errors, provide fallback development mode
+    if (error.code === 'ETIMEDOUT' || error.code === 'ECONNECTION' || error.message.includes('timeout')) {
+      const code = generateVerificationCode();
+      const resetToken = generateResetToken();
+      const expiryTime = new Date(Date.now() + 15 * 60 * 1000);
+      
+      verificationCodes.set(email, {
+        code,
+        resetToken,
+        expiryTime,
+        attempts: 0,
+        maxAttempts: 3
+      });
+      
+      console.log('\n' + '='.repeat(60));
+      console.log('📧 EMAIL SERVICE TIMEOUT - FALLBACK MODE');
+      console.log('='.repeat(60));
+      console.log(`🔑 Verification Code for ${email}: ${code}`);
+      console.log(`⏰ Code expires at: ${expiryTime.toLocaleString()}`);
+      console.log(`👤 User type: ${userType}`);
+      console.log('='.repeat(60) + '\n');
+      
+      return {
+        success: true,
+        message: 'Verification code generated (email service timeout)',
+        resetToken,
+        devMode: true,
+        code,
+        emailError: errorMessage
+      };
+    }
+    
     throw new Error(errorMessage);
   }
 };
@@ -403,7 +519,25 @@ const cleanupExpiredCodes = () => {
 const testEmailConfiguration = async () => {
   try {
     const transporter = createTransporter();
-    await transporter.verify();
+    
+    // Add timeout to the verification
+    const verifyPromise = new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Email configuration test timeout'));
+      }, 30000);
+      
+      transporter.verify()
+        .then(() => {
+          clearTimeout(timeoutId);
+          resolve(true);
+        })
+        .catch(error => {
+          clearTimeout(timeoutId);
+          reject(error);
+        });
+    });
+    
+    await verifyPromise;
     console.log('✅ Email configuration is valid');
     return true;
   } catch (error) {

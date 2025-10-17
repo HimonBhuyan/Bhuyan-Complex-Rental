@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { toast } from 'react-hot-toast'
+import { getApiUrl } from '../utils/api'
 
 const ApiNotificationContext = createContext()
 
@@ -10,8 +11,6 @@ export const useApiNotifications = () => {
   }
   return context
 }
-
-const API_BASE_URL = 'http://localhost:3001/api'
 
 export const ApiNotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([])
@@ -29,7 +28,7 @@ export const ApiNotificationProvider = ({ children }) => {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
       
-      const response = await fetch(`${API_BASE_URL}/notifications`, {
+      const response = await fetch(`${getApiUrl()}/notifications`, {
         headers: {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
@@ -105,7 +104,7 @@ export const ApiNotificationProvider = ({ children }) => {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
       
-      const response = await fetch(`${API_BASE_URL}/notifications`, {
+      const response = await fetch(`${getApiUrl()}/notifications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -193,7 +192,7 @@ export const ApiNotificationProvider = ({ children }) => {
     try {
       console.log(`✅ Marking notification ${notificationId} as read`)
       
-      const response = await fetch(`${API_BASE_URL}/notifications/${notificationId}`, {
+      const response = await fetch(`${getApiUrl()}/notifications/${notificationId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -221,7 +220,7 @@ export const ApiNotificationProvider = ({ children }) => {
     try {
       console.log(`🗑️ Deleting notification ${notificationId}`)
       
-      const response = await fetch(`${API_BASE_URL}/notifications/${notificationId}`, {
+      const response = await fetch(`${getApiUrl()}/notifications/${notificationId}`, {
         method: 'DELETE'
       })
       
