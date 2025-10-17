@@ -92,10 +92,11 @@ const generateResetToken = () => {
   return crypto.randomBytes(32).toString('hex');
 };
 
-// Create working email transporters
+// Create working email transporters that deliver to real inboxes
 const createWorkingTransporter = async () => {
-  // Option 1: Use SMTP2GO (free tier, works on cloud)
+  // Priority 1: Use SMTP2GO (free 1000 emails/month, works on all cloud platforms)
   if (process.env.SMTP2GO_API_KEY) {
+    console.log('🚀 Using SMTP2GO for real email delivery');
     return nodemailer.createTransport({
       host: 'mail.smtp2go.com',
       port: 587,
@@ -103,14 +104,47 @@ const createWorkingTransporter = async () => {
       auth: {
         user: process.env.SMTP2GO_USERNAME || 'smtp2go',
         pass: process.env.SMTP2GO_API_KEY
-      }
+      },
+      timeout: 10000
     });
   }
   
-  // Option 2: Use Ethereal (for testing - creates real emails you can view)
-  console.log('📧 Creating Ethereal test account for email delivery...');
-  const testAccount = await nodemailer.createTestAccount();
+  // Priority 2: Use Brevo (Sendinblue) - free 300 emails/day
+  if (process.env.BREVO_API_KEY) {
+    console.log('🚀 Using Brevo for real email delivery');
+    return nodemailer.createTransport({
+      host: 'smtp-relay.brevo.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.BREVO_EMAIL || 'noreply@bhuyancpx.com',
+        pass: process.env.BREVO_API_KEY
+      },
+      timeout: 10000
+    });
+  }
   
+  // Priority 3: Use Resend (modern, works great on cloud)
+  if (process.env.RESEND_API_KEY) {
+    console.log('🚀 Using Resend for real email delivery');
+    return nodemailer.createTransport({
+      host: 'smtp.resend.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: 'resend',
+        pass: process.env.RESEND_API_KEY
+      },
+      timeout: 10000
+    });
+  }
+  
+  // Fallback: Ethereal (test only - emails won't reach real inboxes)
+  console.log('⚠️  No production email service configured!');
+  console.log('📧 Using Ethereal test account (emails won\'t reach real inboxes)');
+  console.log('🔧 Configure SMTP2GO_API_KEY for real email delivery');
+  
+  const testAccount = await nodemailer.createTestAccount();
   return nodemailer.createTransport({
     host: 'smtp.ethereal.email',
     port: 587,
@@ -118,7 +152,8 @@ const createWorkingTransporter = async () => {
     auth: {
       user: testAccount.user,
       pass: testAccount.pass
-    }
+    },
+    timeout: 10000
   });
 };
 
@@ -153,7 +188,18 @@ const sendVerificationCode = async (email, userType = 'user') => {
     
     try {
       transporter = await createWorkingTransporter();
-      emailService = process.env.SMTP2GO_API_KEY ? 'SMTP2GO' : 'Ethereal';
+      
+      // Detect which email service is being used
+      if (process.env.SMTP2GO_API_KEY) {
+        emailService = 'SMTP2GO';
+      } else if (process.env.BREVO_API_KEY) {
+        emailService = 'Brevo';
+      } else if (process.env.RESEND_API_KEY) {
+        emailService = 'Resend';
+      } else {
+        emailService = 'Ethereal (Test Only)';
+      }
+      
       console.log(`🚀 Using ${emailService} email service`);
     } catch (error) {
       console.log(`❌ Email service setup failed: ${error.message}`);
@@ -203,46 +249,68 @@ const sendVerificationCode = async (email, userType = 'user') => {
       text: `Password Reset Code - Bhuyan Complex Management\n\nHello ${userType === 'owner' ? 'Building Owner' : 'Tenant'},\n\nYour verification code is: ${code}\n\nThis code expires in 15 minutes.\n\nBhuyan Complex Management System`
     };
 
-    // Try to send email
+    // Try to send email with timeout
     try {
       console.log(`📧 Sending email to ${email} using ${emailService}...`);
       
-      const result = await transporter.sendMail(mailOptions);
+      // Add timeout to email sending (10 seconds for cloud platforms)
+      const emailPromise = transporter.sendMail(mailOptions);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Connection timeout - SMTP blocked on cloud platform')), 10000);
+      });
       
-      if (emailService === 'Ethereal') {
-        console.log(`✅ Email sent successfully to ${email}`);
+      const result = await Promise.race([emailPromise, timeoutPromise]);
+      
+      if (emailService === 'Ethereal (Test Only)') {
+        console.log(`✅ Test email created successfully`);
+        console.log(`⚠️  WARNING: This is a test email - tenant will NOT receive it!`);
         console.log(`🌐 Preview URL: ${nodemailer.getTestMessageUrl(result)}`);
-        console.log(`📧 You can view the email at the preview URL above`);
+        console.log(`📱 Admin must manually share the code with tenant: ${code}`);
         
         return {
           success: true,
-          message: `Email sent successfully via ${emailService}. Check server logs for preview URL.`,
+          message: `Test email created. Admin must provide verification code to tenant manually.`,
           resetToken,
           previewUrl: nodemailer.getTestMessageUrl(result),
-          method: emailService
+          method: emailService,
+          code,
+          requiresManualDelivery: true
         };
       } else {
-        console.log(`✅ Email sent successfully to ${email} using ${emailService}`);
+        console.log(`✅ Email delivered to ${email} using ${emailService}`);
         console.log(`📬 Message ID: ${result.messageId}`);
+        console.log(`📧 Tenant should receive the verification code in their inbox`);
         
         return {
           success: true,
-          message: 'Verification code sent to your email',
+          message: `Verification code sent to ${email}. Check your inbox and spam folder.`,
           resetToken,
-          method: emailService
+          method: emailService,
+          delivered: true
         };
       }
       
     } catch (emailError) {
       console.log(`❌ Email sending failed: ${emailError.message}`);
+      console.log(`⚠️  SMTP appears to be blocked on this cloud platform (Render/Heroku/etc.)`);
+      console.log(`✅ Using console-based delivery instead`);
+      console.log('\n' + '='.repeat(60));
+      console.log('📧 CONSOLE DELIVERY - ADMIN PLEASE SHARE THIS CODE');
+      console.log('='.repeat(60));
+      console.log(`📧 Email: ${email}`);
+      console.log(`🔑 Code: ${code}`);
+      console.log(`⏰ Expires: ${expiryTime.toLocaleString()}`);
+      console.log(`📱 Share this code with the user requesting password reset`);
+      console.log('='.repeat(60) + '\n');
       
       return {
         success: true,
-        message: 'Verification code generated. Please use the code from server logs.',
+        message: 'Verification code generated. Admin will provide code via alternative method.',
         resetToken,
         fallbackMode: true,
         code,
-        error: emailError.message
+        error: emailError.message,
+        deliveryMethod: 'console'
       };
     }
     
