@@ -96,7 +96,7 @@ const generateResetToken = () => {
 const createWorkingTransporter = async () => {
   // Option 1: Use SMTP2GO (free tier, works on cloud)
   if (process.env.SMTP2GO_API_KEY) {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: 'mail.smtp2go.com',
       port: 587,
       secure: false,
@@ -111,7 +111,7 @@ const createWorkingTransporter = async () => {
   console.log('📧 Creating Ethereal test account for email delivery...');
   const testAccount = await nodemailer.createTestAccount();
   
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     host: 'smtp.ethereal.email',
     port: 587,
     secure: false,
