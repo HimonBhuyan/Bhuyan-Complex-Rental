@@ -4,28 +4,58 @@ const crypto = require('crypto');
 // Store verification codes in memory (in production, use Redis or database)
 const verificationCodes = new Map();
 
-// Configure nodemailer transporter
+// Configure nodemailer transporter with multiple service options
 const createTransporter = () => {
-  // For development, you can use Gmail with App Password
-  // For production, use proper SMTP service like SendGrid, Mailgun, etc.
+  // Try multiple email services for better reliability
   
-  if (process.env.EMAIL_SERVICE === 'gmail') {
+  // Option 1: Outlook/Hotmail (often works better than Gmail on cloud)
+  if (process.env.EMAIL_SERVICE === 'outlook' || process.env.EMAIL_USER?.includes('outlook.com') || process.env.EMAIL_USER?.includes('hotmail.com')) {
     return nodemailer.createTransport({
-      service: 'gmail',
-      host: 'smtp.gmail.com',
+      service: 'outlook',
+      host: 'smtp-mail.outlook.com',
       port: 587,
       secure: false,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
       },
-      pool: true,
-      maxConnections: 1,
-      rateDelta: 20000,
-      rateLimit: 5
+      tls: {
+        ciphers: 'SSLv3'
+      }
     });
-  } else if (process.env.EMAIL_SERVICE === 'ethereal') {
-    // Ethereal Email - for testing (creates temporary test account)
+  }
+  
+  // Option 2: Gmail with optimized settings for cloud platforms
+  if (process.env.EMAIL_SERVICE === 'gmail' || process.env.EMAIL_USER?.includes('gmail.com')) {
+    return nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true, // Use SSL
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+  }
+  
+  // Option 3: SendGrid (most reliable for production)
+  if (process.env.EMAIL_SERVICE === 'sendgrid' && process.env.SENDGRID_API_KEY) {
+    return nodemailer.createTransport({
+      host: 'smtp.sendgrid.net',
+      port: 587,
+      secure: false,
+      auth: {
+        user: 'apikey',
+        pass: process.env.SENDGRID_API_KEY
+      }
+    });
+  }
+  
+  // Option 4: Ethereal (for testing)
+  if (process.env.EMAIL_SERVICE === 'ethereal') {
     return nodemailer.createTransport({
       host: 'smtp.ethereal.email',
       port: 587,
@@ -35,18 +65,21 @@ const createTransporter = () => {
         pass: process.env.EMAIL_PASS || 'ethereal.pass'
       }
     });
-  } else {
-    // Generic SMTP configuration
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: process.env.SMTP_PORT || 587,
-      secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
   }
+  
+  // Default: Generic SMTP with better settings
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true' || false,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    },
+    tls: {
+      rejectUnauthorized: false
+    }
+  });
 };
 
 // Generate 6-digit verification code
@@ -102,55 +135,104 @@ const sendVerificationCode = async (email, userType = 'user') => {
     };
   }
 
-  // Try to send email in background (don't wait for it)
+  // Try to send email with retry mechanism
   setImmediate(async () => {
-    try {
-      const transporter = createTransporter();
-
-      // Simple email content for background sending
-      const mailOptions = {
-        from: {
-          name: 'Bhuyan Complex Management',
-          address: process.env.EMAIL_USER
-        },
-        to: email,
-        subject: `Password Reset Code: ${code} - Bhuyan Complex`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: #667eea; color: white; padding: 20px; text-align: center; border-radius: 10px;">
-              <h1>🏢 Password Reset</h1>
-              <p>Bhuyan Complex Management</p>
-            </div>
-            <div style="padding: 20px; background: #f9f9f9; margin: 20px 0; text-align: center;">
-              <h2>Your verification code is:</h2>
-              <div style="font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 4px; font-family: monospace;">
-                ${code}
-              </div>
-              <p style="color: #666; margin-top: 20px;">This code expires in 15 minutes</p>
-            </div>
-            <p>Hello ${userType === 'owner' ? 'Building Owner' : 'Tenant'},</p>
-            <p>Enter this code in the password reset form to proceed.</p>
-            <p style="color: #666; font-size: 12px; margin-top: 30px;">Generated: ${new Date().toLocaleString()}</p>
+    const maxRetries = 3;
+    let lastError = null;
+    
+    // Email content
+    const mailOptions = {
+      from: {
+        name: 'Bhuyan Complex Management',
+        address: process.env.EMAIL_USER
+      },
+      to: email,
+      subject: `Password Reset Code: ${code} - Bhuyan Complex`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: #667eea; color: white; padding: 20px; text-align: center; border-radius: 10px;">
+            <h1>🏢 Password Reset</h1>
+            <p>Bhuyan Complex Management</p>
           </div>
-        `,
-        text: `Password Reset Code: ${code}\n\nHello ${userType === 'owner' ? 'Building Owner' : 'Tenant'},\n\nYour verification code is: ${code}\n\nThis code expires in 15 minutes.\n\nBhuyan Complex Management`
-      };
+          <div style="padding: 20px; background: #f9f9f9; margin: 20px 0; text-align: center;">
+            <h2>Your verification code is:</h2>
+            <div style="font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 4px; font-family: monospace;">
+              ${code}
+            </div>
+            <p style="color: #666; margin-top: 20px;">This code expires in 15 minutes</p>
+          </div>
+          <p>Hello ${userType === 'owner' ? 'Building Owner' : 'Tenant'},</p>
+          <p>Enter this code in the password reset form to proceed.</p>
+          <p style="color: #666; font-size: 12px; margin-top: 30px;">Generated: ${new Date().toLocaleString()}</p>
+        </div>
+      `,
+      text: `Password Reset Code: ${code}\n\nHello ${userType === 'owner' ? 'Building Owner' : 'Tenant'},\n\nYour verification code is: ${code}\n\nThis code expires in 15 minutes.\n\nBhuyan Complex Management`
+    };
 
-      // Try to send email (with 5 second timeout)
-      console.log(`📧 Trying to send email to ${email}...`);
-      const emailPromise = transporter.sendMail(mailOptions);
-      
-      // Race between email sending and timeout
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Email timeout')), 5000)
-      );
-      
-      await Promise.race([emailPromise, timeoutPromise]);
-      console.log(`✅ Email sent successfully to ${email}`);
-      
-    } catch (emailError) {
-      console.log(`⚠️ Email failed for ${email}: ${emailError.message}`);
+    // Try different email configurations
+    const emailConfigs = [
+      // Config 1: SSL Gmail
+      () => nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+        tls: { rejectUnauthorized: false }
+      }),
+      // Config 2: TLS Gmail
+      () => nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+        tls: { rejectUnauthorized: false }
+      }),
+      // Config 3: Gmail service
+      () => nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+      })
+    ];
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        console.log(`📧 Email attempt ${attempt + 1}/${maxRetries} to ${email}...`);
+        
+        // Try each configuration
+        for (let configIndex = 0; configIndex < emailConfigs.length; configIndex++) {
+          try {
+            const transporter = emailConfigs[configIndex]();
+            
+            // Send with 10 second timeout
+            const emailPromise = transporter.sendMail(mailOptions);
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Email timeout')), 10000)
+            );
+            
+            await Promise.race([emailPromise, timeoutPromise]);
+            console.log(`✅ Email sent successfully to ${email} (config ${configIndex + 1})`);
+            return; // Success - exit function
+            
+          } catch (configError) {
+            console.log(`⚠️ Config ${configIndex + 1} failed: ${configError.message}`);
+            lastError = configError;
+          }
+        }
+        
+        // If all configs failed, wait before retry
+        if (attempt < maxRetries - 1) {
+          console.log(`🔄 Waiting 2 seconds before retry...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+      } catch (attemptError) {
+        lastError = attemptError;
+        console.log(`⚠️ Attempt ${attempt + 1} failed: ${attemptError.message}`);
+      }
     }
+    
+    // All attempts failed
+    console.log(`❌ All email attempts failed for ${email}. Last error: ${lastError?.message}`);
   });
 
   // Return immediately with success (don't wait for email)
