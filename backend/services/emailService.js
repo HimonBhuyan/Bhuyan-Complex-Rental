@@ -10,7 +10,7 @@ const createTransporter = () => {
   // For production, use proper SMTP service like SendGrid, Mailgun, etc.
   
   if (process.env.EMAIL_SERVICE === 'gmail') {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       service: 'gmail',
       host: 'smtp.gmail.com',
       port: 587,
@@ -41,7 +41,7 @@ const createTransporter = () => {
     });
   } else {
     // Generic SMTP configuration with better timeout handling
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.SMTP_PORT) || 587,
       secure: false,
