@@ -206,8 +206,41 @@ const sendVerificationCode = async (email, userType = 'user') => {
     // Try to send email with multiple configurations
     console.log(`📧 Attempting to send verification code to ${email}...`);
     
-    const emailConfigs = [
-      // Config 1: Gmail with SSL (most reliable for cloud)
+    const emailConfigs = [];
+    
+    // Priority 1: SendGrid (most reliable for cloud platforms)
+    if (process.env.SENDGRID_API_KEY) {
+      emailConfigs.push({
+        name: 'SendGrid',
+        config: {
+          host: 'smtp.sendgrid.net',
+          port: 587,
+          secure: false,
+          auth: {
+            user: 'apikey',
+            pass: process.env.SENDGRID_API_KEY
+          }
+        }
+      });
+    }
+    
+    // Priority 2: Outlook/Hotmail (often works better than Gmail on cloud)
+    if (process.env.EMAIL_SERVICE === 'outlook' || process.env.EMAIL_USER?.includes('outlook.com') || process.env.EMAIL_USER?.includes('hotmail.com')) {
+      emailConfigs.push({
+        name: 'Outlook',
+        config: {
+          host: 'smtp-mail.outlook.com',
+          port: 587,
+          secure: false,
+          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+          tls: { ciphers: 'SSLv3' }
+        }
+      });
+    }
+    
+    // Priority 3-5: Gmail configurations (fallback)
+    emailConfigs.push(
+      // Gmail SSL
       {
         name: 'Gmail SSL',
         config: {
@@ -218,7 +251,7 @@ const sendVerificationCode = async (email, userType = 'user') => {
           tls: { rejectUnauthorized: false }
         }
       },
-      // Config 2: Gmail with TLS  
+      // Gmail TLS
       {
         name: 'Gmail TLS',
         config: {
@@ -229,7 +262,7 @@ const sendVerificationCode = async (email, userType = 'user') => {
           tls: { rejectUnauthorized: false }
         }
       },
-      // Config 3: Gmail service
+      // Gmail Service
       {
         name: 'Gmail Service',
         config: {
@@ -237,7 +270,7 @@ const sendVerificationCode = async (email, userType = 'user') => {
           auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
         }
       }
-    ];
+    );
 
     let lastError = null;
     
@@ -280,6 +313,15 @@ const sendVerificationCode = async (email, userType = 'user') => {
     console.log(`⏰ Code expires at: ${expiryTime.toLocaleString()}`);
     console.log(`👤 User type: ${userType}`);
     console.log(`❌ Last error: ${lastError?.message}`);
+    console.log('='.repeat(60));
+    console.log('💡 SOLUTION: Gmail SMTP is blocked on this server.');
+    console.log('🔧 Quick fix: Set up SendGrid (5 minutes):');
+    console.log('1. Go to https://sendgrid.com/ and create free account');
+    console.log('2. Get API key from Settings -> API Keys');
+    console.log('3. Add to Render environment variables:');
+    console.log('   EMAIL_SERVICE=sendgrid');
+    console.log('   SENDGRID_API_KEY=your_api_key_here');
+    console.log('4. Redeploy - emails will work immediately!');
     console.log('='.repeat(60) + '\n');
     
     return {
