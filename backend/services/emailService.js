@@ -92,9 +92,45 @@ const generateResetToken = () => {
   return crypto.randomBytes(32).toString('hex');
 };
 
+// Send email via Resend HTTP API (bypasses SMTP blocking)
+const sendEmailViaResendAPI = async (mailOptions) => {
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: `${mailOptions.from.name} <onboarding@resend.dev>`, // Use verified sender
+      reply_to: 'complexbhuyan@gmail.com', // Replies go to management email
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+      html: mailOptions.html,
+      text: mailOptions.text
+    })
+  });
+  
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Resend API error: ${response.status} - ${error}`);
+  }
+  
+  return await response.json();
+};
+
 // Create working email transporters that deliver to real inboxes
 const createWorkingTransporter = async () => {
-  // Priority 1: Use SMTP2GO (free 1000 emails/month, works on all cloud platforms)
+  // Priority 1: Use Resend HTTP API (bypasses SMTP blocking on cloud platforms)
+  if (process.env.RESEND_API_KEY) {
+    console.log('🚀 Using Resend HTTP API (SMTP-free) for real email delivery');
+    return {
+      sendMail: sendEmailViaResendAPI,
+      verify: () => Promise.resolve(true), // HTTP API doesn't need verification
+      isHTTPAPI: true
+    };
+  }
+  
+  // Priority 2: Use SMTP2GO (free 1000 emails/month, works on all cloud platforms)
   if (process.env.SMTP2GO_API_KEY) {
     console.log('🚀 Using SMTP2GO for real email delivery');
     return nodemailer.createTransport({
@@ -109,33 +145,21 @@ const createWorkingTransporter = async () => {
     });
   }
   
-  // Priority 2: Use Brevo (Sendinblue) - free 300 emails/day
+  // Priority 3: Use Brevo (Sendinblue) - free 300 emails/day
   if (process.env.BREVO_API_KEY) {
     console.log('🚀 Using Brevo for real email delivery');
+    console.log(`📧 Brevo sender: ${process.env.BREVO_EMAIL}`);
     return nodemailer.createTransport({
       host: 'smtp-relay.brevo.com',
       port: 587,
       secure: false,
       auth: {
-        user: process.env.BREVO_EMAIL || 'noreply@bhuyancpx.com',
+        user: process.env.BREVO_EMAIL,
         pass: process.env.BREVO_API_KEY
       },
-      timeout: 10000
-    });
-  }
-  
-  // Priority 3: Use Resend (modern, works great on cloud)
-  if (process.env.RESEND_API_KEY) {
-    console.log('🚀 Using Resend for real email delivery');
-    return nodemailer.createTransport({
-      host: 'smtp.resend.com',
-      port: 587,
-      secure: false,
-      auth: {
-        user: 'resend',
-        pass: process.env.RESEND_API_KEY
-      },
-      timeout: 10000
+      timeout: 15000,
+      debug: true, // Enable debug logging
+      logger: true
     });
   }
   
@@ -190,17 +214,29 @@ const sendVerificationCode = async (email, userType = 'user') => {
       transporter = await createWorkingTransporter();
       
       // Detect which email service is being used
-      if (process.env.SMTP2GO_API_KEY) {
+      if (process.env.RESEND_API_KEY) {
+        emailService = 'Resend HTTP API';
+      } else if (process.env.SMTP2GO_API_KEY) {
         emailService = 'SMTP2GO';
       } else if (process.env.BREVO_API_KEY) {
         emailService = 'Brevo';
-      } else if (process.env.RESEND_API_KEY) {
-        emailService = 'Resend';
       } else {
         emailService = 'Ethereal (Test Only)';
       }
       
       console.log(`🚀 Using ${emailService} email service`);
+      
+      // Test the connection for production services
+      if (emailService !== 'Ethereal (Test Only)') {
+        console.log('🔍 Testing email service connection...');
+        try {
+          await transporter.verify();
+          console.log('✅ Email service connection verified successfully');
+        } catch (verifyError) {
+          console.log(`⚠️  Email service verification failed: ${verifyError.message}`);
+          console.log('📄 Continuing anyway - will attempt to send email');
+        }
+      }
     } catch (error) {
       console.log(`❌ Email service setup failed: ${error.message}`);
       return {
@@ -212,11 +248,20 @@ const sendVerificationCode = async (email, userType = 'user') => {
       };
     }
 
-    // Email content
+    // Email content - use complexbhuyan@gmail.com as primary sender
+    const getSenderEmail = () => {
+      // Use verified sender for each service
+      if (process.env.RESEND_API_KEY) {
+        // For Resend: use verified onboarding address (Reply-To will be complexbhuyan@gmail.com)
+        return 'onboarding@resend.dev';
+      }
+      return process.env.BREVO_EMAIL || process.env.EMAIL_USER || 'complexbhuyan@gmail.com';
+    };
+    
     const mailOptions = {
       from: {
         name: 'Bhuyan Complex Management',
-        address: process.env.EMAIL_USER || 'noreply@bhuyancpx.com'
+        address: getSenderEmail()
       },
       to: email,
       subject: 'Password Reset Code - Bhuyan Complex Management',
@@ -275,6 +320,20 @@ const sendVerificationCode = async (email, userType = 'user') => {
           method: emailService,
           code,
           requiresManualDelivery: true
+        };
+      } else if (emailService === 'Resend HTTP API') {
+        console.log(`✅ Email delivered to ${email} using ${emailService}`);
+        console.log(`🌐 Email ID: ${result.id}`);
+        console.log(`✨ Bypassed SMTP blocking using HTTP API`);
+        console.log(`📧 Tenant should receive the verification code in their inbox`);
+        
+        return {
+          success: true,
+          message: `Verification code sent to ${email}. Check your inbox and spam folder.`,
+          resetToken,
+          method: emailService,
+          delivered: true,
+          emailId: result.id
         };
       } else {
         console.log(`✅ Email delivered to ${email} using ${emailService}`);
