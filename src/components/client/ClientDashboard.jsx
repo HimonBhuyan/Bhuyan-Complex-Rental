@@ -1070,38 +1070,10 @@ const ClientDashboard = ({ user, onLogout }) => {
             </div>
           </button>
 
-          <button 
-            className="payment-option upi"
-            onClick={() => makePayment(bill, 'upi')}
-          >
-            <DollarSign size={24} />
-            <div>
-              <strong>UPI Payment</strong>
-              <small>Pay using UPI apps</small>
-            </div>
-          </button>
+          
 
-          <button 
-            className="payment-option cash"
-            onClick={() => makePayment(bill, 'cash')}
-          >
-            <Wallet size={24} />
-            <div>
-              <strong>Cash Payment</strong>
-              <small>Record cash payment to office</small>
-            </div>
-          </button>
-
-          <button 
-            className="payment-option bank"
-            onClick={() => makePayment(bill, 'bank_transfer')}
-          >
-            <Receipt size={24} />
-            <div>
-              <strong>Bank Transfer</strong>
-              <small>Direct bank transfer</small>
-            </div>
-          </button>
+      
+          
         </div>
       </div>
 

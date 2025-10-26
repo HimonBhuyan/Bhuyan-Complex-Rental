@@ -545,6 +545,7 @@
   
   .header-left {
     justify-content: center;
+    margin-right: 65px;
   }
   
   .contacts-grid {

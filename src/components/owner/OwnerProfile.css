@@ -422,12 +422,14 @@
   margin: 0 0 8px 0;
   font-size: 24px;
   font-weight: 700;
+  color:grey;
 }
 
 .photo-info p {
   margin: 0;
   font-size: 16px;
   opacity: 0.9;
+  color: black;
 }
 
 /* Building Overview Card */
