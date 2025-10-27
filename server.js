@@ -45,6 +45,7 @@ const corsOptions = {
       'https://localhost:5173',
       'https://localhost:5174',
       'https://localhost:3000',
+        'capacitor://localhost', // ✅ Allow Capacitor (Android/iOS) app
       process.env.FRONTEND_URL, // For production deployment
       process.env.RENDER_EXTERNAL_URL, // For Render deployment
     ].filter(Boolean); // Remove undefined values
