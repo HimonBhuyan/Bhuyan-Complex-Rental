@@ -12,7 +12,7 @@ import RazorpayScript from './components/RazorpayScript'
 import { UserProvider, useUser } from './context/UserContext'
 import { OwnerProvider } from './context/OwnerContext'
 import { RealTimeNotificationProvider } from './context/RealTimeNotificationContext'
-import SplashWelcome from './components/splash/SplashWelcome.jsx';
+import SplashWelcome from './components/splash/SplashWelcome';
 
 import './App.css'
 
