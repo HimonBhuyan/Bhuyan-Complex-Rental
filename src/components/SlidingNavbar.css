@@ -31,6 +31,7 @@
   display: flex;
   flex-direction: column;
   padding: 1rem 0;
+  margin-top: 50px;
 }
 
 .navbar-header {
@@ -276,6 +277,7 @@
   .main-content {
     margin-left: 0 !important;
     width: 100% !important;
+   
   }
 }
 

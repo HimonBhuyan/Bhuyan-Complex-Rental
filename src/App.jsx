@@ -12,6 +12,8 @@ import RazorpayScript from './components/RazorpayScript'
 import { UserProvider, useUser } from './context/UserContext'
 import { OwnerProvider } from './context/OwnerContext'
 import { RealTimeNotificationProvider } from './context/RealTimeNotificationContext'
+import SplashWelcome from './components/splash/SplashWelcome';
+
 import './App.css'
 
 const AppContent = () => {
@@ -32,6 +34,10 @@ const AppContent = () => {
         <RazorpayScript />
         <Toaster position="top-right" />
         <Routes>
+          {/* ✅ Splash route first */}
+          <Route path="/" element={<SplashWelcome />} />
+
+          {/* Auth & dashboard routes */}
           <Route 
             path="/login" 
             element={user ? <Navigate to="/dashboard" /> : <Login onLogin={login} />} 
@@ -42,7 +48,7 @@ const AppContent = () => {
           />
           <Route 
             path="/tenant" 
-            element={user && user.role === 'tenant' ? <ClientDashboard user={user} onLogout={logout} /> : <Navigate to="/login" />} 
+            element={user && user.role === 'tenant' ? <TenantDashboard user={user} onLogout={logout} /> : <Navigate to="/login" />} 
           />
           <Route 
             path="/tenant/profile" 
@@ -61,8 +67,8 @@ const AppContent = () => {
             element={user && user.role === 'owner' ? <OwnerDashboard onLogout={logout} /> : <Navigate to="/login" />} 
           />
           <Route 
-            path="/" 
-            element={<Navigate to={user ? "/dashboard" : "/login"} />} 
+            path="/admin" 
+            element={user && user.role === 'admin' ? <AdminDashboard onLogout={logout} /> : <Navigate to="/login" />} 
           />
         </Routes>
       </div>

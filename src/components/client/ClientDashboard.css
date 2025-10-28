@@ -1646,7 +1646,7 @@
   }
 
   .dashboard-tabs {
-    flex-direction: column;
+    margin-left: 60px;
   }
 
   .dashboard-tabs button {

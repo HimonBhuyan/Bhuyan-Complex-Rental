@@ -321,19 +321,6 @@ const Login = ({ onLogin }) => {
               </button>
             </form>
 
-            <div className="login-footer">
-              <div className="demo-credentials">
-                <p className="demo-title">Demo Credentials:</p>
-                <div className="demo-users">
-                  <div className="demo-user">
-                    <strong>Owner:</strong> owner / owner123
-                  </div>
-                  <div className="demo-user">
-                    <strong>Tenant:</strong> john.doe / tenant123
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
