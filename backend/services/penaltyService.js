@@ -64,12 +64,16 @@ class PenaltyService {
       // Calculate penalty
       const penaltyAmount = daysOverdue * this.PENALTY_RATE;
 
+      // CRITICAL FIX: Calculate original amount by removing existing penalty
+      const originalAmount = bill.totalAmount - (bill.penalty?.amount || 0);
+
+      // Update penalty information
       bill.penalty.amount = penaltyAmount;
       bill.penalty.days = daysOverdue;
       bill.penalty.appliedDate = currentDate;
 
-      // Update totals
-      bill.totalAmount = bill.originalAmount + penaltyAmount;
+      // Update totals with the correct original amount
+      bill.totalAmount = originalAmount + penaltyAmount;
       bill.remainingAmount = Math.max(0, bill.totalAmount - bill.paidAmount);
 
       if (bill.status === 'pending') {
@@ -81,6 +85,7 @@ class PenaltyService {
       await this.sendPenaltyNotification(bill, penaltyAmount);
 
       console.log(`✅ [PenaltyService] Applied ₹${penaltyAmount} penalty (${daysOverdue} days) to bill ${bill.billNumber}`);
+      console.log(`   Original: ₹${originalAmount}, Penalty: ₹${penaltyAmount}, Total: ₹${bill.totalAmount}`);
 
       return { applied: true, amount: penaltyAmount };
     } catch (error) {
@@ -147,6 +152,74 @@ class PenaltyService {
     const amount = daysOverdue * this.PENALTY_RATE;
 
     return { amount, days: daysOverdue, shouldApply: true };
+  }
+
+  // Add missing methods that are called in the routes
+  async getPenaltyHistory(billId) {
+    try {
+      const bill = await Bill.findById(billId)
+        .populate('tenant', 'name username')
+        .populate('room', 'roomNumber');
+
+      if (!bill) {
+        throw new Error('Bill not found');
+      }
+
+      return {
+        bill: {
+          id: bill._id,
+          billNumber: bill.billNumber,
+          month: bill.month,
+          year: bill.year,
+          status: bill.status
+        },
+        penalty: {
+          amount: bill.penalty?.amount || 0,
+          days: bill.penalty?.days || 0,
+          appliedDate: bill.penalty?.appliedDate || null
+        }
+      };
+    } catch (error) {
+      console.error('❌ [PenaltyService] Error getting penalty history:', error);
+      throw error;
+    }
+  }
+
+  async adjustPenalty(billId, adjustment) {
+    try {
+      const bill = await Bill.findById(billId);
+      
+      if (!bill) {
+        throw new Error('Bill not found');
+      }
+
+      const currentPenalty = bill.penalty?.amount || 0;
+      const newPenalty = Math.max(0, currentPenalty + adjustment);
+      
+      // Calculate original amount (without any penalty)
+      const originalAmount = bill.totalAmount - currentPenalty;
+      
+      // Update penalty
+      bill.penalty.amount = newPenalty;
+      
+      // Recalculate total
+      bill.totalAmount = originalAmount + newPenalty;
+      bill.remainingAmount = Math.max(0, bill.totalAmount - bill.paidAmount);
+      
+      await bill.save();
+
+      console.log(`✅ [PenaltyService] Adjusted penalty for bill ${bill.billNumber}: ${currentPenalty} → ${newPenalty}`);
+
+      return {
+        previousPenalty: currentPenalty,
+        newPenalty,
+        adjustment,
+        totalAmount: bill.totalAmount
+      };
+    } catch (error) {
+      console.error('❌ [PenaltyService] Error adjusting penalty:', error);
+      throw error;
+    }
   }
 }
 
