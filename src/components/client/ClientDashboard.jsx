@@ -121,7 +121,7 @@ const ClientDashboard = ({ user, onLogout }) => {
           directory: 'DOCUMENTS'
         });
         
-        toast.success(`Invoice saved as ${fileName} in Documents 📄`);
+        toast.success(`Invoice saved as ${fileName} in File Manager - Documents 📄`);
       } else {
         // 💻 For browser (Web)
         const blobUrl = window.URL.createObjectURL(blob);
