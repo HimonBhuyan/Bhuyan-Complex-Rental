@@ -85,27 +85,58 @@ const ClientDashboard = ({ user, onLogout }) => {
   const generatePDF = async (bill) => {
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('User not authenticated.');
+        return;
+      }
+
       const response = await fetch(`${getApiUrl()}/tenant/bills/${bill._id}/pdf`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Bill_${bill.billNumber}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        toast.success('Invoice downloaded successfully');
+      if (!response.ok) {
+        throw new Error('Failed to fetch invoice PDF');
+      }
+
+      const blob = await response.blob();
+
+      // Check if running in Capacitor (mobile app)
+      const isApp = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform();
+
+      if (isApp) {
+        // 📱 For Android/iOS (Capacitor)
+        const arrayBuffer = await blob.arrayBuffer();
+        const base64Data = btoa(
+          new Uint8Array(arrayBuffer).reduce(
+            (data, byte) => data + String.fromCharCode(byte),
+            ''
+          )
+        );
+        
+        const fileName = `Invoice_${bill.billNumber}.pdf`;
+        
+        await window.Capacitor.Plugins.Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: 'DOCUMENTS'
+        });
+        
+        toast.success(`Invoice saved as ${fileName} in Documents 📄`);
       } else {
-        toast.error('Failed to generate PDF');
+        // 💻 For browser (Web)
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = `Invoice_${bill.billNumber}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+        toast.success('Invoice downloaded successfully ✅');
       }
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      toast.error('Failed to generate PDF');
+      console.error('PDF download error:', error);
+      toast.error('Failed to download invoice. Please try again.');
     }
   };
 
