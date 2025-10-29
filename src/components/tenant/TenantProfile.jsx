@@ -653,7 +653,7 @@ const TenantProfile = ({ onLogout }) => {
           <div className="header-left">
             <button 
               className="back-btn"
-              onClick={() => navigate('/tenant')}
+              onClick={() => navigate('/client')}
             >
               <ArrowLeft size={20} />
               Back to Dashboard

@@ -249,7 +249,7 @@ const Help = ({ onLogout }) => {
           <div className="header-left">
             <button 
               className="back-btn"
-              onClick={() => navigate(user?.role === 'tenant' ? '/tenant' : '/owner')}
+              onClick={() => navigate(user?.role === 'tenant' ? '/client' : '/owner')}
             >
               <ArrowLeft size={20} />
               Back to Dashboard
