@@ -308,4 +308,66 @@ router.post('/recalculate-all', async (req, res) => {
   }
 });
 
+// Test endpoint: Force recalculate a specific bill (for debugging)
+router.post('/test-recalculate/:billId', async (req, res) => {
+  try {
+    const { billId } = req.params;
+    
+    console.log(`🧪 [PenaltyAPI] Testing recalculation for bill ${billId}`);
+    
+    const bill = await Bill.findById(billId)
+      .populate('tenant', 'name username email')
+      .populate('room', 'roomNumber');
+    
+    if (!bill) {
+      return res.status(404).json({ error: 'Bill not found' });
+    }
+    
+    const before = {
+      penalty: bill.penalty?.amount || 0,
+      days: bill.penalty?.days || 0,
+      totalAmount: bill.totalAmount
+    };
+    
+    const currentDate = new Date();
+    const daysOverdue = Math.floor((currentDate - bill.dueDate) / (1000 * 60 * 60 * 24));
+    const expectedPenalty = daysOverdue * 50;
+    
+    console.log(`📊 Before: Penalty ₹${before.penalty} (${before.days} days), Total ₹${before.totalAmount}`);
+    console.log(`📊 Expected: Penalty ₹${expectedPenalty} (${daysOverdue} days)`);
+    
+    await penaltyService.applyPenaltyToBill(bill, currentDate);
+    
+    // Reload bill
+    const updatedBill = await Bill.findById(billId);
+    
+    const after = {
+      penalty: updatedBill.penalty?.amount || 0,
+      days: updatedBill.penalty?.days || 0,
+      totalAmount: updatedBill.totalAmount
+    };
+    
+    console.log(`📊 After: Penalty ₹${after.penalty} (${after.days} days), Total ₹${after.totalAmount}`);
+    
+    res.json({
+      success: true,
+      bill: {
+        billNumber: updatedBill.billNumber,
+        dueDate: updatedBill.dueDate,
+        daysOverdue,
+        before,
+        after,
+        expectedPenalty
+      }
+    });
+  } catch (error) {
+    console.error('❌ [PenaltyAPI] Error in test recalculation:', error);
+    res.status(500).json({ 
+      error: 'Failed to test recalculation',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
 module.exports = { router, setPenaltyServiceBroadcast };

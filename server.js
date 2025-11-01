@@ -1996,7 +1996,8 @@ app.get('/api/tenant/dashboard', authenticateToken, async (req, res) => {
 
     // Auto-recalculate penalties for overdue bills if they're incorrect
     const currentDate = new Date();
-    for (const bill of bills) {
+    for (let i = 0; i < bills.length; i++) {
+      const bill = bills[i];
       if (bill.status !== 'paid' && currentDate > bill.dueDate) {
         const daysOverdue = Math.floor((currentDate - bill.dueDate) / (1000 * 60 * 60 * 24));
         const correctPenalty = daysOverdue * 50; // ₹50 per day
@@ -2004,15 +2005,17 @@ app.get('/api/tenant/dashboard', authenticateToken, async (req, res) => {
         
         // If penalty doesn't match (allowing 1 rupee tolerance), recalculate
         if (Math.abs(currentPenalty - correctPenalty) > 1) {
-          console.log(`🔄 Auto-recalculating penalty for bill ${bill.billNumber}: ${currentPenalty} → ${correctPenalty}`);
+          console.log(`🔄 [Dashboard] Auto-recalculating penalty for bill ${bill.billNumber}`);
+          console.log(`   Current: ₹${currentPenalty} (${bill.penalty?.days || 0} days), Expected: ₹${correctPenalty} (${daysOverdue} days)`);
+          
           await penaltyService.applyPenaltyToBill(bill, currentDate);
-          // Reload bill to get updated values
+          
+          // Reload bill to get updated values from database
           const updatedBill = await Bill.findById(bill._id).populate('room', 'roomNumber');
-          // Update the bill object in place
-          bill.penalty = updatedBill.penalty;
-          bill.totalAmount = updatedBill.totalAmount;
-          bill.remainingAmount = updatedBill.remainingAmount;
-          bill.status = updatedBill.status;
+          // Replace bill in array with updated version
+          bills[i] = updatedBill;
+          
+          console.log(`✅ [Dashboard] Updated bill ${bill.billNumber} - Penalty: ₹${updatedBill.penalty?.amount}, Total: ₹${updatedBill.totalAmount}`);
         }
       }
     }
@@ -2085,7 +2088,8 @@ app.get('/api/tenant/bills', authenticateToken, async (req, res) => {
 
     // Auto-recalculate penalties for overdue bills if they're incorrect
     const currentDate = new Date();
-    for (const bill of bills) {
+    for (let i = 0; i < bills.length; i++) {
+      const bill = bills[i];
       if (bill.status !== 'paid' && currentDate > bill.dueDate) {
         const daysOverdue = Math.floor((currentDate - bill.dueDate) / (1000 * 60 * 60 * 24));
         const correctPenalty = daysOverdue * 50; // ₹50 per day
@@ -2093,15 +2097,17 @@ app.get('/api/tenant/bills', authenticateToken, async (req, res) => {
         
         // If penalty doesn't match (allowing 1 rupee tolerance), recalculate
         if (Math.abs(currentPenalty - correctPenalty) > 1) {
-          console.log(`🔄 Auto-recalculating penalty for bill ${bill.billNumber}: ${currentPenalty} → ${correctPenalty}`);
+          console.log(`🔄 [Dashboard] Auto-recalculating penalty for bill ${bill.billNumber}`);
+          console.log(`   Current: ₹${currentPenalty} (${bill.penalty?.days || 0} days), Expected: ₹${correctPenalty} (${daysOverdue} days)`);
+          
           await penaltyService.applyPenaltyToBill(bill, currentDate);
-          // Reload bill to get updated values
+          
+          // Reload bill to get updated values from database
           const updatedBill = await Bill.findById(bill._id).populate('room', 'roomNumber');
-          // Update the bill object in place
-          bill.penalty = updatedBill.penalty;
-          bill.totalAmount = updatedBill.totalAmount;
-          bill.remainingAmount = updatedBill.remainingAmount;
-          bill.status = updatedBill.status;
+          // Replace bill in array with updated version
+          bills[i] = updatedBill;
+          
+          console.log(`✅ [Dashboard] Updated bill ${bill.billNumber} - Penalty: ₹${updatedBill.penalty?.amount}, Total: ₹${updatedBill.totalAmount}`);
         }
       }
     }
@@ -2190,15 +2196,20 @@ app.get('/api/tenant/bills/:billId', authenticateToken, async (req, res) => {
       
       // If penalty doesn't match (allowing 1 rupee tolerance), recalculate
       if (Math.abs(currentPenalty - correctPenalty) > 1) {
-        console.log(`🔄 Auto-recalculating penalty for bill ${bill.billNumber}: ${currentPenalty} → ${correctPenalty}`);
+        console.log(`🔄 [BillDetail] Auto-recalculating penalty for bill ${bill.billNumber}`);
+        console.log(`   Current: ₹${currentPenalty} (${bill.penalty?.days || 0} days), Expected: ₹${correctPenalty} (${daysOverdue} days)`);
+        
         await penaltyService.applyPenaltyToBill(bill, currentDate);
-        // Reload bill to get updated values
+        
+        // Reload bill to get updated values from database
         const updatedBill = await Bill.findById(bill._id).populate('room', 'roomNumber type');
-        // Update the bill object in place
+        // Update bill object
         bill.penalty = updatedBill.penalty;
         bill.totalAmount = updatedBill.totalAmount;
         bill.remainingAmount = updatedBill.remainingAmount;
         bill.status = updatedBill.status;
+        
+        console.log(`✅ [BillDetail] Updated bill ${bill.billNumber} - Penalty: ₹${bill.penalty?.amount}, Total: ₹${bill.totalAmount}`);
       }
     }
 

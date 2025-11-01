@@ -64,37 +64,48 @@ class PenaltyService {
       // Calculate penalty: ₹50 per day
       const penaltyAmount = daysOverdue * this.PENALTY_RATE;
 
-      // CRITICAL FIX: Calculate base amount (without penalty)
-      // We need to extract the original bill amount by removing any existing penalty
-      // The bill.totalAmount might have been inflated with penalty before
-      const existingPenalty = bill.penalty?.amount || 0;
-      const baseAmount = bill.totalAmount - existingPenalty;
-
-      // Ensure baseAmount is positive and reasonable (at least the items total)
-      // Calculate what the base amount should be from bill items
-      let calculatedBaseAmount = 0;
+      // CRITICAL FIX: Calculate base amount (without penalty) from bill items
+      // Always calculate from items first as the source of truth
+      let originalAmount = 0;
+      let calculatedFromItems = false;
+      
       if (bill.items) {
-        calculatedBaseAmount += bill.items.rent?.amount || 0;
-        calculatedBaseAmount += bill.items.electricity?.amount || 0;
-        calculatedBaseAmount += bill.items.waterBill?.amount || 0;
-        calculatedBaseAmount += bill.items.commonAreaCharges?.amount || 0;
+        // Sum all items
+        originalAmount += bill.items.rent?.amount || 0;
+        originalAmount += bill.items.electricity?.amount || 0;
+        originalAmount += bill.items.waterBill?.amount || 0;
+        originalAmount += bill.items.commonAreaCharges?.amount || 0;
+        
+        // Additional charges
         if (bill.items.additionalCharges && Array.isArray(bill.items.additionalCharges)) {
-          calculatedBaseAmount += bill.items.additionalCharges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
+          originalAmount += bill.items.additionalCharges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
         }
-        // Handle utilities object if it exists
-        if (bill.items.utilities) {
+        
+        // Utilities (nested object)
+        if (bill.items.utilities && typeof bill.items.utilities === 'object') {
           Object.values(bill.items.utilities).forEach(utility => {
             if (utility && typeof utility === 'object' && utility.amount) {
-              calculatedBaseAmount += utility.amount || 0;
+              originalAmount += utility.amount || 0;
             }
           });
         }
+        
+        calculatedFromItems = originalAmount > 0;
       }
-
-      // Use the calculated base amount if it's more reliable, otherwise use the extracted base amount
-      const originalAmount = calculatedBaseAmount > 0 && Math.abs(calculatedBaseAmount - baseAmount) > 100 
-        ? calculatedBaseAmount 
-        : Math.max(baseAmount, calculatedBaseAmount);
+      
+      // Fallback: If items don't add up or are missing, extract from totalAmount
+      // This handles legacy bills where items might not be structured correctly
+      if (originalAmount <= 0) {
+        const existingPenalty = bill.penalty?.amount || 0;
+        originalAmount = bill.totalAmount - existingPenalty;
+        console.log(`⚠️ [PenaltyService] Using extracted base amount for bill ${bill.billNumber}: ₹${originalAmount} (totalAmount: ₹${bill.totalAmount}, existingPenalty: ₹${existingPenalty})`);
+      }
+      
+      // Ensure originalAmount is positive
+      if (originalAmount <= 0) {
+        console.error(`❌ [PenaltyService] Invalid base amount for bill ${bill.billNumber}: ₹${originalAmount}. Using totalAmount as fallback.`);
+        originalAmount = bill.totalAmount - (bill.penalty?.amount || 0);
+      }
 
       // Update penalty information
       bill.penalty = bill.penalty || {};
@@ -113,10 +124,16 @@ class PenaltyService {
 
       await bill.save();
 
-      await this.sendPenaltyNotification(bill, penaltyAmount);
+      // Send notification (don't let this break the penalty application)
+      try {
+        await this.sendPenaltyNotification(bill, penaltyAmount);
+      } catch (notifError) {
+        console.warn(`⚠️ [PenaltyService] Failed to send notification for bill ${bill.billNumber}:`, notifError.message);
+        // Continue - penalty was applied successfully
+      }
 
       console.log(`✅ [PenaltyService] Applied ₹${penaltyAmount} penalty (${daysOverdue} days) to bill ${bill.billNumber}`);
-      console.log(`   Base Amount: ₹${originalAmount}, Penalty: ₹${penaltyAmount}, Total: ₹${bill.totalAmount}`);
+      console.log(`   Base Amount: ₹${originalAmount} ${calculatedFromItems ? '(from items)' : '(extracted from total)'}, Penalty: ₹${penaltyAmount}, Total: ₹${bill.totalAmount}`);
 
       return { applied: true, amount: penaltyAmount };
     } catch (error) {
