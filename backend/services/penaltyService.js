@@ -61,22 +61,53 @@ class PenaltyService {
       const diffInMs = currentDate - dueDate;
       const daysOverdue = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
 
-      // Calculate penalty
+      // Calculate penalty: ₹50 per day
       const penaltyAmount = daysOverdue * this.PENALTY_RATE;
 
-      // CRITICAL FIX: Calculate original amount by removing existing penalty
-      const originalAmount = bill.totalAmount - (bill.penalty?.amount || 0);
+      // CRITICAL FIX: Calculate base amount (without penalty)
+      // We need to extract the original bill amount by removing any existing penalty
+      // The bill.totalAmount might have been inflated with penalty before
+      const existingPenalty = bill.penalty?.amount || 0;
+      const baseAmount = bill.totalAmount - existingPenalty;
+
+      // Ensure baseAmount is positive and reasonable (at least the items total)
+      // Calculate what the base amount should be from bill items
+      let calculatedBaseAmount = 0;
+      if (bill.items) {
+        calculatedBaseAmount += bill.items.rent?.amount || 0;
+        calculatedBaseAmount += bill.items.electricity?.amount || 0;
+        calculatedBaseAmount += bill.items.waterBill?.amount || 0;
+        calculatedBaseAmount += bill.items.commonAreaCharges?.amount || 0;
+        if (bill.items.additionalCharges && Array.isArray(bill.items.additionalCharges)) {
+          calculatedBaseAmount += bill.items.additionalCharges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
+        }
+        // Handle utilities object if it exists
+        if (bill.items.utilities) {
+          Object.values(bill.items.utilities).forEach(utility => {
+            if (utility && typeof utility === 'object' && utility.amount) {
+              calculatedBaseAmount += utility.amount || 0;
+            }
+          });
+        }
+      }
+
+      // Use the calculated base amount if it's more reliable, otherwise use the extracted base amount
+      const originalAmount = calculatedBaseAmount > 0 && Math.abs(calculatedBaseAmount - baseAmount) > 100 
+        ? calculatedBaseAmount 
+        : Math.max(baseAmount, calculatedBaseAmount);
 
       // Update penalty information
+      bill.penalty = bill.penalty || {};
       bill.penalty.amount = penaltyAmount;
       bill.penalty.days = daysOverdue;
+      bill.penalty.rate = this.PENALTY_RATE;
       bill.penalty.appliedDate = currentDate;
 
-      // Update totals with the correct original amount
+      // Update totals: original amount + penalty
       bill.totalAmount = originalAmount + penaltyAmount;
       bill.remainingAmount = Math.max(0, bill.totalAmount - bill.paidAmount);
 
-      if (bill.status === 'pending') {
+      if (bill.status === 'pending' || bill.status === 'partially_paid') {
         bill.status = 'overdue';
       }
 
@@ -85,7 +116,7 @@ class PenaltyService {
       await this.sendPenaltyNotification(bill, penaltyAmount);
 
       console.log(`✅ [PenaltyService] Applied ₹${penaltyAmount} penalty (${daysOverdue} days) to bill ${bill.billNumber}`);
-      console.log(`   Original: ₹${originalAmount}, Penalty: ₹${penaltyAmount}, Total: ₹${bill.totalAmount}`);
+      console.log(`   Base Amount: ₹${originalAmount}, Penalty: ₹${penaltyAmount}, Total: ₹${bill.totalAmount}`);
 
       return { applied: true, amount: penaltyAmount };
     } catch (error) {
@@ -196,14 +227,15 @@ class PenaltyService {
       const currentPenalty = bill.penalty?.amount || 0;
       const newPenalty = Math.max(0, currentPenalty + adjustment);
       
-      // Calculate original amount (without any penalty)
-      const originalAmount = bill.totalAmount - currentPenalty;
+      // Calculate base amount (without penalty) - same logic as applyPenaltyToBill
+      const baseAmount = bill.totalAmount - currentPenalty;
       
       // Update penalty
+      bill.penalty = bill.penalty || {};
       bill.penalty.amount = newPenalty;
       
-      // Recalculate total
-      bill.totalAmount = originalAmount + newPenalty;
+      // Recalculate total: base amount + new penalty
+      bill.totalAmount = baseAmount + newPenalty;
       bill.remainingAmount = Math.max(0, bill.totalAmount - bill.paidAmount);
       
       await bill.save();
@@ -218,6 +250,104 @@ class PenaltyService {
       };
     } catch (error) {
       console.error('❌ [PenaltyService] Error adjusting penalty:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Recalculate penalties for all existing bills to fix any incorrect calculations
+   * This method should be run once to fix old bills with wrong penalty amounts
+   */
+  async recalculateAllPenalties(currentDate = new Date()) {
+    try {
+      console.log('🔄 [PenaltyService] Starting recalculation of penalties for all bills...');
+      
+      const unpaidBills = await Bill.find({
+        status: { $in: ['pending', 'partially_paid', 'overdue'] }
+      })
+        .populate('tenant', 'name username email')
+        .populate('room', 'roomNumber');
+
+      let recalculated = 0;
+      let totalPenaltyCorrection = 0;
+
+      for (const bill of unpaidBills) {
+        const dueDate = new Date(bill.dueDate);
+        
+        // Only recalculate if bill is overdue
+        if (currentDate > dueDate) {
+          const oldPenalty = bill.penalty?.amount || 0;
+          
+          // Calculate what the penalty should be
+          const diffInMs = currentDate - dueDate;
+          const daysOverdue = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+          const correctPenalty = daysOverdue * this.PENALTY_RATE;
+          
+          // Only update if penalty is different
+          if (Math.abs(oldPenalty - correctPenalty) > 1) { // Allow 1 rupee tolerance for rounding
+            // Calculate base amount from bill items
+            let baseAmount = 0;
+            if (bill.items) {
+              baseAmount += bill.items.rent?.amount || 0;
+              baseAmount += bill.items.electricity?.amount || 0;
+              baseAmount += bill.items.waterBill?.amount || 0;
+              baseAmount += bill.items.commonAreaCharges?.amount || 0;
+              if (bill.items.additionalCharges && Array.isArray(bill.items.additionalCharges)) {
+                baseAmount += bill.items.additionalCharges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
+              }
+              if (bill.items.utilities) {
+                Object.values(bill.items.utilities).forEach(utility => {
+                  if (utility && typeof utility === 'object' && utility.amount) {
+                    baseAmount += utility.amount || 0;
+                  }
+                });
+              }
+            }
+            
+            // If we can't calculate from items, extract from totalAmount
+            if (baseAmount <= 0) {
+              baseAmount = bill.totalAmount - oldPenalty;
+            }
+
+            // Update penalty
+            bill.penalty = bill.penalty || {};
+            bill.penalty.amount = correctPenalty;
+            bill.penalty.days = daysOverdue;
+            bill.penalty.rate = this.PENALTY_RATE;
+            bill.penalty.appliedDate = currentDate;
+
+            // Update totals
+            bill.totalAmount = baseAmount + correctPenalty;
+            bill.remainingAmount = Math.max(0, bill.totalAmount - bill.paidAmount);
+
+            if (bill.status === 'pending') {
+              bill.status = 'overdue';
+            }
+
+            await bill.save();
+            
+            const correction = correctPenalty - oldPenalty;
+            totalPenaltyCorrection += correction;
+            recalculated++;
+            
+            console.log(`✅ [PenaltyService] Recalculated bill ${bill.billNumber}: ${daysOverdue} days overdue`);
+            console.log(`   Old penalty: ₹${oldPenalty}, New penalty: ₹${correctPenalty}, Correction: ₹${correction}`);
+            console.log(`   Base: ₹${baseAmount}, Total: ₹${bill.totalAmount}`);
+          }
+        }
+      }
+
+      console.log(`✅ [PenaltyService] Recalculation complete: ${recalculated} bills updated`);
+      console.log(`   Total penalty correction: ₹${totalPenaltyCorrection}`);
+
+      return {
+        success: true,
+        recalculated,
+        totalPenaltyCorrection,
+        processedBills: unpaidBills.length
+      };
+    } catch (error) {
+      console.error('❌ [PenaltyService] Error recalculating penalties:', error);
       throw error;
     }
   }

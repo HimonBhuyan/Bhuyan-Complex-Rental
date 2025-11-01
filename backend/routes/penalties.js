@@ -272,7 +272,7 @@ router.get('/settings', async (req, res) => {
       settings: {
         penaltyRate: penaltyService.PENALTY_RATE,
         applicationDay: penaltyService.PENALTY_APPLICATION_DAY,
-        penaltyType: 'Monthly Fixed Amount',
+        penaltyType: 'Daily Rate (₹50/day)',
         currency: '₹',
         autoApplication: true
       }
@@ -281,6 +281,28 @@ router.get('/settings', async (req, res) => {
     console.error('❌ [PenaltyAPI] Error getting penalty settings:', error);
     res.status(500).json({ 
       error: 'Failed to get penalty settings',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Recalculate penalties for all existing bills (Admin only)
+// This fixes incorrect penalty calculations in old bills
+router.post('/recalculate-all', async (req, res) => {
+  try {
+    console.log('🔄 [PenaltyAPI] Recalculation request received');
+    
+    const result = await penaltyService.recalculateAllPenalties();
+    
+    res.json({
+      success: true,
+      message: `Recalculated penalties for ${result.recalculated} bills`,
+      ...result
+    });
+  } catch (error) {
+    console.error('❌ [PenaltyAPI] Error recalculating penalties:', error);
+    res.status(500).json({ 
+      error: 'Failed to recalculate penalties',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

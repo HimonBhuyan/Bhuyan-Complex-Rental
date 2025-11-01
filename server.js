@@ -1994,21 +1994,28 @@ app.get('/api/tenant/dashboard', authenticateToken, async (req, res) => {
       .sort({ generatedAt: -1 })
       .limit(10);
 
-    // Calculate late fees for each bill
+    // Use stored penalty amounts instead of calculating on-the-fly
+    // bill.totalAmount already includes penalty if it was applied
     const billsWithLateFees = bills.map(bill => {
-      if (bill.status === 'pending' && new Date() > bill.dueDate) {
-        const daysLate = Math.floor((new Date() - bill.dueDate) / (1000 * 60 * 60 * 24));
-        const lateFee = daysLate * (bill.penalty.rate || 50);
-        
-        return {
-          ...bill.toObject(),
-          lateFee,
-          daysLate,
-          totalWithLateFee: bill.totalAmount + lateFee,
-          status: 'overdue'
-        };
+      const billObj = bill.toObject();
+      const penaltyAmount = bill.penalty?.amount || 0;
+      const daysLate = bill.penalty?.days || 0;
+      
+      // bill.totalAmount already includes penalty if penalty was applied
+      // So totalWithLateFee is just the totalAmount
+      billObj.lateFee = penaltyAmount;
+      billObj.daysLate = daysLate;
+      billObj.totalWithLateFee = bill.totalAmount; // Already includes penalty
+      billObj.remainingAmount = Math.max(0, bill.totalAmount - bill.paidAmount);
+      
+      // Update status if overdue but status hasn't been updated yet
+      if (bill.status === 'pending' && new Date() > bill.dueDate && penaltyAmount === 0) {
+        billObj.status = 'overdue';
+      } else if (penaltyAmount > 0 && bill.status !== 'paid') {
+        billObj.status = 'overdue';
       }
-      return bill;
+      
+      return billObj;
     });
 
     // Get payment history
@@ -2054,24 +2061,21 @@ app.get('/api/tenant/bills', authenticateToken, async (req, res) => {
       .populate('room', 'roomNumber')
       .sort({ generatedAt: -1 });
 
-    // Calculate late fees and update status for each bill
+    // Use stored penalty amounts - bill.totalAmount already includes penalty if applied
     const billsWithDetails = bills.map(bill => {
       const billObj = bill.toObject();
+      const penaltyAmount = bill.penalty?.amount || 0;
+      const daysLate = bill.penalty?.days || 0;
       
-      if (bill.status === 'pending' && new Date() > bill.dueDate) {
-        const daysLate = Math.floor((new Date() - bill.dueDate) / (1000 * 60 * 60 * 24));
-        const lateFee = daysLate * (bill.penalty.rate || 50);
-        
-        billObj.lateFee = lateFee;
-        billObj.daysLate = daysLate;
-        billObj.totalWithLateFee = bill.totalAmount + lateFee;
+      billObj.lateFee = penaltyAmount;
+      billObj.daysLate = daysLate;
+      // bill.totalAmount already includes penalty, so totalWithLateFee = totalAmount
+      billObj.totalWithLateFee = bill.totalAmount;
+      billObj.remainingAmount = Math.max(0, bill.totalAmount - bill.paidAmount);
+      
+      // Update status if overdue
+      if (penaltyAmount > 0 && bill.status !== 'paid') {
         billObj.status = 'overdue';
-        billObj.remainingAmount = bill.totalAmount + lateFee - bill.paidAmount;
-      } else {
-        billObj.lateFee = 0;
-        billObj.daysLate = 0;
-        billObj.totalWithLateFee = bill.totalAmount;
-        billObj.remainingAmount = Math.max(0, bill.totalAmount - bill.paidAmount);
       }
       
       return billObj;
@@ -2098,18 +2102,15 @@ app.get('/api/tenant/previous-bills', authenticateToken, async (req, res) => {
       
       billObj.monthName = monthNames[bill.month - 1];
       
-      // Calculate late fees if applicable
-      if (bill.status === 'overdue' || (bill.status === 'pending' && new Date() > bill.dueDate)) {
-        const daysLate = Math.floor((new Date() - bill.dueDate) / (1000 * 60 * 60 * 24));
-        billObj.lateFee = daysLate * (bill.penalty.rate || 50);
-        billObj.daysLate = daysLate;
-      } else {
-        billObj.lateFee = bill.penalty.amount || 0;
-        billObj.daysLate = bill.penalty.days || 0;
-      }
+      // Use stored penalty amounts - bill.totalAmount already includes penalty
+      const penaltyAmount = bill.penalty?.amount || 0;
+      const daysLate = bill.penalty?.days || 0;
       
-      billObj.totalWithLateFee = bill.totalAmount + (billObj.lateFee || 0);
-      billObj.remainingAmount = Math.max(0, billObj.totalWithLateFee - bill.paidAmount);
+      billObj.lateFee = penaltyAmount;
+      billObj.daysLate = daysLate;
+      // bill.totalAmount already includes penalty, so totalWithLateFee = totalAmount
+      billObj.totalWithLateFee = bill.totalAmount;
+      billObj.remainingAmount = Math.max(0, bill.totalAmount - bill.paidAmount);
       
       return billObj;
     });
@@ -2139,24 +2140,17 @@ app.get('/api/tenant/bills/:billId', authenticateToken, async (req, res) => {
     const payments = await Payment.find({ bill: billId })
       .sort({ paidAt: -1 });
 
-    // Calculate late fees if applicable
-    let lateFee = 0;
-    let daysLate = 0;
-    
-    if (bill.status === 'pending' && new Date() > bill.dueDate) {
-      daysLate = Math.floor((new Date() - bill.dueDate) / (1000 * 60 * 60 * 24));
-      lateFee = daysLate * (bill.penalty.rate || 50);
-    } else if (bill.penalty.amount) {
-      lateFee = bill.penalty.amount;
-      daysLate = bill.penalty.days;
-    }
+    // Use stored penalty amounts - bill.totalAmount already includes penalty
+    const penaltyAmount = bill.penalty?.amount || 0;
+    const daysLate = bill.penalty?.days || 0;
 
     const billWithDetails = {
       ...bill.toObject(),
-      lateFee,
-      daysLate,
-      totalWithLateFee: bill.totalAmount + lateFee,
-      remainingAmount: Math.max(0, bill.totalAmount + lateFee - bill.paidAmount),
+      lateFee: penaltyAmount,
+      daysLate: daysLate,
+      // bill.totalAmount already includes penalty, so totalWithLateFee = totalAmount
+      totalWithLateFee: bill.totalAmount,
+      remainingAmount: Math.max(0, bill.totalAmount - bill.paidAmount),
       payments
     };
 
