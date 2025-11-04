@@ -844,15 +844,13 @@ app.get('/api/admin/payments/summary', authenticateToken, async (req, res) => {
     }).populate('tenant', 'name username').populate('room', 'roomNumber');
 
     const totalPending = pendingBills.reduce((sum, bill) => {
-      // Use actual penalty amount from database or calculate if not set
-      const penaltyAmount = bill.penalty.amount || 0;
-      return sum + bill.totalAmount + penaltyAmount;
+      // bill.totalAmount already includes penalty, so use it directly
+      return sum + bill.totalAmount;
     }, 0);
 
     const totalOverdue = overdueBills.reduce((sum, bill) => {
-      // Use actual penalty amount from database or calculate if not set
-      const penaltyAmount = bill.penalty.amount || 0;
-      return sum + bill.totalAmount + penaltyAmount;
+      // bill.totalAmount already includes penalty, so use it directly
+      return sum + bill.totalAmount;
     }, 0);
 
     res.json({
@@ -1050,6 +1048,10 @@ app.get('/api/admin/payments/export', authenticateToken, async (req, res) => {
         const internetAmount = bill.items?.utilities?.internet?.amount || 0;
         const parkingAmount = bill.items?.utilities?.parking?.amount || 0;
         const maintenanceAmount = bill.items?.utilities?.maintenance?.amount || 0;
+        
+        // Calculate base total from items (without penalty)
+        const baseTotal = rentAmount + electricityAmount + waterAmount + gasAmount + 
+                          internetAmount + parkingAmount + maintenanceAmount;
 
         const latestPayment = billPayments.length > 0 ? billPayments[billPayments.length - 1] : null;
 
@@ -1070,11 +1072,11 @@ app.get('/api/admin/payments/export', authenticateToken, async (req, res) => {
           'Internet': internetAmount,
           'Parking': parkingAmount,
           'Maintenance': maintenanceAmount,
-          'Bill Total': bill.totalAmount || 0,
+          'Bill Total': baseTotal,
           'Late Fees': Math.round(lateFees),
-          'Total Amount (with Late Fees)': (bill.totalAmount || 0) + Math.round(lateFees),
+          'Total Amount (with Late Fees)': bill.totalAmount || 0,
           'Paid Amount': totalPaid,
-          'Remaining Amount': Math.max(0, ((bill.totalAmount || 0) + Math.round(lateFees)) - totalPaid),
+          'Remaining Amount': Math.max(0, (bill.totalAmount || 0) - totalPaid),
           'Payment Status': bill.status ? bill.status.charAt(0).toUpperCase() + bill.status.slice(1) : 'Unknown',
           'Payment Method': latestPayment?.paymentMethod || 'N/A',
           'Payment Date': latestPayment?.paidAt ? latestPayment.paidAt.toLocaleDateString() : 'N/A',
@@ -1989,54 +1991,253 @@ app.get('/api/tenant/dashboard', authenticateToken, async (req, res) => {
     const tenant = await Tenant.findById(req.user.id).populate('room');
     
     // Get current and recent bills with late fee calculation
-    const bills = await Bill.find({ tenant: req.user.id })
+    let bills = await Bill.find({ tenant: req.user.id })
       .populate('room', 'roomNumber')
       .sort({ generatedAt: -1 })
       .limit(10);
 
-    // Auto-recalculate penalties for overdue bills if they're incorrect
+    // ALWAYS recalculate penalties for overdue bills to ensure they're current
     const currentDate = new Date();
+    console.log(`🔄 [Dashboard] Recalculating penalties for ${bills.length} bills at ${currentDate.toISOString()}`);
     for (let i = 0; i < bills.length; i++) {
       const bill = bills[i];
       if (bill.status !== 'paid' && currentDate > bill.dueDate) {
         const daysOverdue = Math.floor((currentDate - bill.dueDate) / (1000 * 60 * 60 * 24));
-        const correctPenalty = daysOverdue * 50; // ₹50 per day
-        const currentPenalty = bill.penalty?.amount || 0;
         
-        // If penalty doesn't match (allowing 1 rupee tolerance), recalculate
-        if (Math.abs(currentPenalty - correctPenalty) > 1) {
-          console.log(`🔄 [Dashboard] Auto-recalculating penalty for bill ${bill.billNumber}`);
+        // Always recalculate for overdue bills to ensure accuracy
+        if (daysOverdue > 0) {
+          const correctPenalty = daysOverdue * 50; // ₹50 per day
+          const currentPenalty = bill.penalty?.amount || 0;
+          
+          console.log(`🔄 [Dashboard] Recalculating penalty for bill ${bill.billNumber}`);
           console.log(`   Current: ₹${currentPenalty} (${bill.penalty?.days || 0} days), Expected: ₹${correctPenalty} (${daysOverdue} days)`);
           
-          await penaltyService.applyPenaltyToBill(bill, currentDate);
+          const result = await penaltyService.applyPenaltyToBill(bill, currentDate);
           
-          // Reload bill to get updated values from database
+          // Force reload bill to get updated values from database
           const updatedBill = await Bill.findById(bill._id).populate('room', 'roomNumber');
-          // Replace bill in array with updated version
-          bills[i] = updatedBill;
           
-          console.log(`✅ [Dashboard] Updated bill ${bill.billNumber} - Penalty: ₹${updatedBill.penalty?.amount}, Total: ₹${updatedBill.totalAmount}`);
+          // Verify the update was saved - if not, use direct MongoDB update
+          if (Math.abs((updatedBill.penalty?.amount || 0) - correctPenalty) > 1) {
+            console.error(`❌ [Dashboard] Penalty NOT updated for bill ${bill.billNumber}! DB has ₹${updatedBill.penalty?.amount}, expected ₹${correctPenalty}`);
+            
+            // Calculate base amount
+            let baseAmount = 0;
+            if (updatedBill.items) {
+              baseAmount += updatedBill.items.rent?.amount || 0;
+              baseAmount += updatedBill.items.electricity?.amount || 0;
+              baseAmount += updatedBill.items.waterBill?.amount || 0;
+              baseAmount += updatedBill.items.commonAreaCharges?.amount || 0;
+              if (updatedBill.items.additionalCharges && Array.isArray(updatedBill.items.additionalCharges)) {
+                baseAmount += updatedBill.items.additionalCharges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
+              }
+            }
+            if (baseAmount <= 0) {
+              baseAmount = updatedBill.totalAmount - (updatedBill.penalty?.amount || 0);
+            }
+            
+            // Use direct MongoDB update to bypass any Mongoose issues
+            await Bill.updateOne(
+              { _id: bill._id },
+              {
+                $set: {
+                  'penalty.amount': correctPenalty,
+                  'penalty.days': daysOverdue,
+                  'penalty.rate': 50,
+                  'penalty.appliedDate': currentDate,
+                  totalAmount: baseAmount + correctPenalty,
+                  remainingAmount: Math.max(0, (baseAmount + correctPenalty) - (updatedBill.paidAmount || 0)),
+                  status: updatedBill.status === 'paid' ? 'paid' : 'overdue'
+                }
+              }
+            );
+            
+            console.log(`🔧 [Dashboard] Direct MongoDB update: ${bill.billNumber} → penalty=₹${correctPenalty}`);
+          }
+          
+          // Replace bill in array with updated version - ensure we use the fresh document
+          bills[i] = await Bill.findById(bill._id).populate('room', 'roomNumber');
+          
+          console.log(`✅ [Dashboard] Updated bill ${bill.billNumber} - Penalty: ₹${bills[i].penalty?.amount} (${bills[i].penalty?.days} days), Total: ₹${bills[i].totalAmount}`);
         }
       }
     }
 
-    // Use stored penalty amounts - bill.totalAmount already includes penalty if applied
-    const billsWithLateFees = bills.map(bill => {
-      const billObj = bill.toObject();
-      const penaltyAmount = bill.penalty?.amount || 0;
-      const daysLate = bill.penalty?.days || 0;
+    // CRITICAL: Reload ALL bills from database to ensure we have latest data
+    // Use lean() to get plain objects and avoid Mongoose caching issues
+    const billIds = bills.map(b => b._id);
+    console.log(`🔄 [Dashboard] Reloading ${billIds.length} bills from database to ensure fresh data...`);
+    
+    // FORCE a direct query with no cache - ensure we get latest data
+    const freshBills = await Bill.find({ _id: { $in: billIds } })
+      .populate('room', 'roomNumber')
+      .lean({ defaults: true }) // Get plain JavaScript objects, not Mongoose documents
+      .sort({ generatedAt: -1 });
+
+    // Debug: Check what we got from database - verify against expected
+    console.log(`✅ [Dashboard] Loaded ${freshBills.length} fresh bills from database`);
+    
+    // Fix any bills with wrong penalties - AWAIT all updates
+    const billsToFix = [];
+    for (const bill of freshBills) {
+      if (bill.status !== 'paid' && currentDate > new Date(bill.dueDate)) {
+        const daysOverdue = Math.floor((currentDate - new Date(bill.dueDate)) / (1000 * 60 * 60 * 24));
+        if (daysOverdue > 0) {
+          const expectedPenalty = daysOverdue * 50;
+          const currentPenalty = bill.penalty?.amount || 0;
+          
+          if (['BILL000006', 'BILL000005', 'BILL000004'].includes(bill.billNumber)) {
+            console.log(`   📊 [Fresh Load] ${bill.billNumber}:`);
+            console.log(`      penalty.amount=₹${currentPenalty}, penalty.days=${bill.penalty?.days}`);
+            console.log(`      expected=₹${expectedPenalty} (${daysOverdue} days), total=₹${bill.totalAmount}`);
+          }
+          
+          if (Math.abs(currentPenalty - expectedPenalty) > 1) {
+            console.error(`   ❌ ERROR: ${bill.billNumber} has WRONG penalty in database!`);
+            console.error(`      Fixing now with direct update...`);
+            
+            // Calculate base amount
+            let baseAmount = 0;
+            if (bill.items) {
+              baseAmount += bill.items.rent?.amount || 0;
+              baseAmount += bill.items.electricity?.amount || 0;
+              baseAmount += bill.items.waterBill?.amount || 0;
+              baseAmount += bill.items.commonAreaCharges?.amount || 0;
+              if (bill.items.additionalCharges && Array.isArray(bill.items.additionalCharges)) {
+                baseAmount += bill.items.additionalCharges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
+              }
+            }
+            if (baseAmount <= 0) {
+              baseAmount = bill.totalAmount - currentPenalty;
+            }
+            
+            // AWAIT the update - critical!
+            await Bill.updateOne(
+              { _id: bill._id },
+              {
+                $set: {
+                  'penalty.amount': expectedPenalty,
+                  'penalty.days': daysOverdue,
+                  'penalty.rate': 50,
+                  'penalty.appliedDate': currentDate,
+                  totalAmount: baseAmount + expectedPenalty,
+                  remainingAmount: Math.max(0, (baseAmount + expectedPenalty) - (bill.paidAmount || 0)),
+                  status: bill.status === 'paid' ? 'paid' : 'overdue'
+                }
+              }
+            );
+            
+            console.log(`   ✅ Fixed ${bill.billNumber} in database: penalty=₹${expectedPenalty}`);
+            billsToFix.push(bill._id);
+          } else if (['BILL000006', 'BILL000005', 'BILL000004'].includes(bill.billNumber)) {
+            console.log(`   ✅ Penalty is CORRECT in database`);
+          }
+        }
+      }
+    }
+    
+    // If we fixed any bills, reload them to get updated values
+    if (billsToFix.length > 0) {
+      console.log(`🔄 [Dashboard] Reloading ${billsToFix.length} fixed bills from database...`);
+      const fixedBills = await Bill.find({ _id: { $in: billsToFix } })
+        .populate('room', 'roomNumber')
+        .lean({ defaults: true });
       
-      // bill.totalAmount already includes penalty if penalty was applied
-      // So totalWithLateFee is just the totalAmount
+      // Replace the fixed bills in freshBills array
+      const fixedBillsMap = new Map(fixedBills.map(b => [b._id.toString(), b]));
+      freshBills.forEach((bill, index) => {
+        if (fixedBillsMap.has(bill._id.toString())) {
+          freshBills[index] = fixedBillsMap.get(bill._id.toString());
+        }
+      });
+    }
+
+    // Use stored penalty amounts - bill.totalAmount already includes penalty if applied
+    // freshBills are plain objects from lean(), so use them directly
+    const billsWithLateFees = freshBills.map(bill => {
+      // bill is already a plain object from lean(), so just use it
+      const billObj = JSON.parse(JSON.stringify(bill)); // Deep clone to ensure clean object
+      
+      // CRITICAL: Calculate penalty on-the-fly based on due date as PRIMARY source of truth
+      // This ensures correctness even if database value is somehow stale
+      let penaltyAmount = 0;
+      let daysLate = 0;
+      
+      // Check if bill is overdue (not paid AND current date is past due date)
+      const billDueDate = new Date(bill.dueDate);
+      const isPaid = bill.status && bill.status.toLowerCase() === 'paid';
+      const isOverdue = !isPaid && currentDate > billDueDate;
+      
+      if (isOverdue) {
+        daysLate = Math.floor((currentDate - billDueDate) / (1000 * 60 * 60 * 24));
+        if (daysLate > 0) {
+          penaltyAmount = daysLate * 50; // ₹50 per day - PRIMARY calculation
+        }
+      }
+      
+      // Use database value as fallback ONLY if on-the-fly calculation is 0 (not overdue)
+      if (penaltyAmount === 0) {
+        penaltyAmount = bill.penalty?.amount ?? 0;
+        daysLate = bill.penalty?.days ?? 0;
+      }
+      
+      // Calculate base amount (without penalty) - extract from totalAmount
+      // If totalAmount already includes penalty, subtract it
+      let baseAmount = 0;
+      if (bill.items) {
+        // Calculate from items first (most accurate)
+        baseAmount += bill.items.rent?.amount || 0;
+        baseAmount += bill.items.electricity?.amount || 0;
+        baseAmount += bill.items.waterBill?.amount || 0;
+        baseAmount += bill.items.commonAreaCharges?.amount || 0;
+        if (bill.items.additionalCharges && Array.isArray(bill.items.additionalCharges)) {
+          baseAmount += bill.items.additionalCharges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
+        }
+      }
+      
+      // If baseAmount is still 0, calculate from totalAmount
+      if (baseAmount <= 0) {
+        const dbTotal = bill.totalAmount ?? 0;
+        const dbPenalty = bill.penalty?.amount ?? 0;
+        baseAmount = dbTotal - dbPenalty;
+        // If that's still 0 or negative, use totalAmount directly
+        if (baseAmount <= 0) {
+          baseAmount = dbTotal;
+        }
+      }
+      
+      // Calculate total with penalty
+      const totalWithLateFee = baseAmount + penaltyAmount;
+      
+      // OVERWRITE billObj fields with CORRECT values (calculated on-the-fly)
       billObj.lateFee = penaltyAmount;
       billObj.daysLate = daysLate;
-      billObj.totalWithLateFee = bill.totalAmount; // Already includes penalty
-      billObj.remainingAmount = Math.max(0, bill.totalAmount - bill.paidAmount);
+      billObj.baseAmount = baseAmount;
+      billObj.totalWithLateFee = totalWithLateFee;
+      billObj.totalAmount = totalWithLateFee; // Ensure totalAmount includes penalty
+      billObj.remainingAmount = Math.max(0, totalWithLateFee - (bill.paidAmount ?? billObj.paidAmount ?? 0));
+      
+      // COMPLETELY REPLACE penalty object with correct values (calculated on-the-fly)
+      billObj.penalty = {
+        amount: penaltyAmount,
+        days: daysLate,
+        rate: 50,
+        appliedDate: bill.penalty?.appliedDate || currentDate
+      };
+      
+      // Debug logging to verify values - ALWAYS log for all bills to catch issues
+      if (bill.billNumber) {
+        console.log(`   📋 [Mapping] ${bill.billNumber}:`);
+        console.log(`      isOverdue=${isOverdue}, daysLate=${daysLate}, penaltyAmount=₹${penaltyAmount}`);
+        console.log(`      DB penalty=₹${bill.penalty?.amount}, calculated=₹${penaltyAmount} (${daysLate} days)`);
+        console.log(`      baseAmount=₹${baseAmount}, totalWithLateFee=₹${totalWithLateFee}`);
+        console.log(`      billObj.lateFee=₹${billObj.lateFee}, billObj.totalWithLateFee=₹${billObj.totalWithLateFee}, billObj.penalty.amount=₹${billObj.penalty.amount}`);
+      }
       
       // Update status if overdue but status hasn't been updated yet
-      if (bill.status === 'pending' && new Date() > bill.dueDate && penaltyAmount === 0) {
+      if (billObj.status === 'pending' && new Date() > new Date(billObj.dueDate) && penaltyAmount === 0) {
         billObj.status = 'overdue';
-      } else if (penaltyAmount > 0 && bill.status !== 'paid') {
+      } else if (penaltyAmount > 0 && billObj.status !== 'paid') {
         billObj.status = 'overdue';
       }
       
@@ -2059,13 +2260,82 @@ app.get('/api/tenant/dashboard', authenticateToken, async (req, res) => {
       year: currentYear
     });
 
-    res.json({
+    // Final verification - billsWithLateFees already has all correct values calculated on-the-fly
+    // Just ensure all fields are explicitly set for the response
+    const finalBills = billsWithLateFees.map((bill) => {
+      // CRITICAL: billsWithLateFees already calculated everything correctly on-the-fly
+      // Use those values directly - they are the source of truth
+      const lateFee = bill.lateFee ?? 0;
+      const daysLate = bill.daysLate ?? 0;
+      const totalWithLateFee = bill.totalWithLateFee ?? bill.totalAmount ?? 0;
+      const baseAmount = bill.baseAmount ?? 0;
+      const penaltyAmount = bill.penalty?.amount ?? lateFee ?? 0;
+      
+      // Create final bill object - spread bill to preserve all fields, then explicitly override critical ones
+      const finalBill = {
+        ...bill, // Spread all existing fields (including lateFee, daysLate, totalWithLateFee, etc.)
+        // CRITICAL FIELDS - explicitly ensure these are set (override anything that might be wrong)
+        lateFee: lateFee,
+        daysLate: daysLate,
+        totalWithLateFee: totalWithLateFee,
+        baseAmount: baseAmount,
+        totalAmount: totalWithLateFee, // Ensure totalAmount includes penalty
+        remainingAmount: bill.remainingAmount ?? Math.max(0, totalWithLateFee - (bill.paidAmount || 0)),
+        // CRITICAL: Penalty object - must match lateFee exactly
+        penalty: {
+          amount: lateFee, // Use lateFee (calculated on-the-fly) as the source of truth
+          days: daysLate,
+          rate: 50,
+          appliedDate: bill.penalty?.appliedDate || currentDate
+        }
+      };
+      
+      // Debug for specific bills - verify the mapping preserved values
+      if (bill.billNumber && ['BILL000006', 'BILL000005', 'BILL000004'].includes(bill.billNumber)) {
+        console.log(`   🔍 [Final Mapping] ${bill.billNumber}:`);
+        console.log(`      Input from billsWithLateFees: lateFee=₹${bill.lateFee}, daysLate=${bill.daysLate}, totalWithLateFee=₹${bill.totalWithLateFee}`);
+        console.log(`      Output finalBill: lateFee=₹${finalBill.lateFee}, daysLate=${finalBill.daysLate}, totalWithLateFee=₹${finalBill.totalWithLateFee}, penalty.amount=₹${finalBill.penalty.amount}`);
+      }
+      
+      return finalBill;
+    });
+
+    // Final debug: Verify what we're sending - check actual JSON structure
+    console.log(`📤 [Dashboard] Sending ${finalBills.length} bills in response`);
+    finalBills.slice(0, 5).forEach(bill => {
+      console.log(`   📦 ${bill.billNumber}:`);
+      console.log(`      lateFee=₹${bill.lateFee}, daysLate=${bill.daysLate}`);
+      console.log(`      totalWithLateFee=₹${bill.totalWithLateFee}, totalAmount=₹${bill.totalAmount}`);
+      console.log(`      penalty.amount=₹${bill.penalty?.amount}, penalty.days=${bill.penalty?.days}`);
+      console.log(`      baseAmount=₹${bill.baseAmount}`);
+    });
+
+    // CRITICAL: Verify the response structure before sending
+    const responseData = {
       success: true,
       tenant,
-      bills: billsWithLateFees,
+      bills: finalBills,
       payments,
       currentMonthBill
-    });
+    };
+    
+    // Final verification: Check that all bills have lateFee and totalWithLateFee
+    const billsWithMissingFields = finalBills.filter(bill => 
+      bill.lateFee === undefined || 
+      bill.totalWithLateFee === undefined || 
+      bill.daysLate === undefined
+    );
+    
+    if (billsWithMissingFields.length > 0) {
+      console.error(`❌ [Dashboard] ERROR: ${billsWithMissingFields.length} bills missing critical fields!`);
+      billsWithMissingFields.forEach(bill => {
+        console.error(`   ❌ ${bill.billNumber}: lateFee=${bill.lateFee}, totalWithLateFee=${bill.totalWithLateFee}, daysLate=${bill.daysLate}`);
+      });
+    } else {
+      console.log(`✅ [Dashboard] All ${finalBills.length} bills have required fields (lateFee, totalWithLateFee, daysLate)`);
+    }
+
+    res.json(responseData);
   } catch (error) {
     console.error('❌ Error fetching tenant dashboard:', error);
     res.status(500).json({ error: 'Failed to fetch dashboard data' });
@@ -2086,18 +2356,19 @@ app.get('/api/tenant/bills', authenticateToken, async (req, res) => {
       .populate('room', 'roomNumber')
       .sort({ generatedAt: -1 });
 
-    // Auto-recalculate penalties for overdue bills if they're incorrect
+    // ALWAYS recalculate penalties for overdue bills to ensure they're current
     const currentDate = new Date();
     for (let i = 0; i < bills.length; i++) {
       const bill = bills[i];
       if (bill.status !== 'paid' && currentDate > bill.dueDate) {
         const daysOverdue = Math.floor((currentDate - bill.dueDate) / (1000 * 60 * 60 * 24));
-        const correctPenalty = daysOverdue * 50; // ₹50 per day
-        const currentPenalty = bill.penalty?.amount || 0;
         
-        // If penalty doesn't match (allowing 1 rupee tolerance), recalculate
-        if (Math.abs(currentPenalty - correctPenalty) > 1) {
-          console.log(`🔄 [Dashboard] Auto-recalculating penalty for bill ${bill.billNumber}`);
+        // Always recalculate for overdue bills to ensure accuracy
+        if (daysOverdue > 0) {
+          const correctPenalty = daysOverdue * 50; // ₹50 per day
+          const currentPenalty = bill.penalty?.amount || 0;
+          
+          console.log(`🔄 [Bills] Recalculating penalty for bill ${bill.billNumber}`);
           console.log(`   Current: ₹${currentPenalty} (${bill.penalty?.days || 0} days), Expected: ₹${correctPenalty} (${daysOverdue} days)`);
           
           await penaltyService.applyPenaltyToBill(bill, currentDate);
@@ -2107,22 +2378,74 @@ app.get('/api/tenant/bills', authenticateToken, async (req, res) => {
           // Replace bill in array with updated version
           bills[i] = updatedBill;
           
-          console.log(`✅ [Dashboard] Updated bill ${bill.billNumber} - Penalty: ₹${updatedBill.penalty?.amount}, Total: ₹${updatedBill.totalAmount}`);
+          console.log(`✅ [Bills] Updated bill ${bill.billNumber} - Penalty: ₹${updatedBill.penalty?.amount} (${updatedBill.penalty?.days} days), Total: ₹${updatedBill.totalAmount}`);
         }
       }
     }
 
-    // Use stored penalty amounts - bill.totalAmount already includes penalty if applied
+    // Calculate penalties on-the-fly based on due date as PRIMARY source of truth
     const billsWithDetails = bills.map(bill => {
       const billObj = bill.toObject();
-      const penaltyAmount = bill.penalty?.amount || 0;
-      const daysLate = bill.penalty?.days || 0;
       
+      // CRITICAL: Calculate penalty on-the-fly based on due date as PRIMARY source of truth
+      let penaltyAmount = 0;
+      let daysLate = 0;
+      
+      if (bill.status !== 'paid' && currentDate > bill.dueDate) {
+        daysLate = Math.floor((currentDate - bill.dueDate) / (1000 * 60 * 60 * 24));
+        if (daysLate > 0) {
+          penaltyAmount = daysLate * 50; // ₹50 per day - PRIMARY calculation
+        }
+      }
+      
+      // Use database value as fallback ONLY if on-the-fly calculation is 0 (not overdue)
+      if (penaltyAmount === 0) {
+        penaltyAmount = bill.penalty?.amount ?? 0;
+        daysLate = bill.penalty?.days ?? 0;
+      }
+      
+      // Calculate base amount (without penalty) - extract from totalAmount
+      let baseAmount = 0;
+      if (bill.items) {
+        // Calculate from items first (most accurate)
+        baseAmount += bill.items.rent?.amount || 0;
+        baseAmount += bill.items.electricity?.amount || 0;
+        baseAmount += bill.items.waterBill?.amount || 0;
+        baseAmount += bill.items.commonAreaCharges?.amount || 0;
+        if (bill.items.additionalCharges && Array.isArray(bill.items.additionalCharges)) {
+          baseAmount += bill.items.additionalCharges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
+        }
+      }
+      
+      // If baseAmount is still 0, calculate from totalAmount
+      if (baseAmount <= 0) {
+        const dbTotal = bill.totalAmount ?? 0;
+        const dbPenalty = bill.penalty?.amount ?? 0;
+        baseAmount = dbTotal - dbPenalty;
+        // If that's still 0 or negative, use totalAmount directly
+        if (baseAmount <= 0) {
+          baseAmount = dbTotal;
+        }
+      }
+      
+      // Calculate total with penalty
+      const totalWithLateFee = baseAmount + penaltyAmount;
+      
+      // OVERWRITE billObj fields with CORRECT values (calculated on-the-fly)
       billObj.lateFee = penaltyAmount;
       billObj.daysLate = daysLate;
-      // bill.totalAmount already includes penalty, so totalWithLateFee = totalAmount
-      billObj.totalWithLateFee = bill.totalAmount;
-      billObj.remainingAmount = Math.max(0, bill.totalAmount - bill.paidAmount);
+      billObj.baseAmount = baseAmount;
+      billObj.totalWithLateFee = totalWithLateFee;
+      billObj.totalAmount = totalWithLateFee; // Ensure totalAmount includes penalty
+      billObj.remainingAmount = Math.max(0, totalWithLateFee - (bill.paidAmount || 0));
+      
+      // COMPLETELY REPLACE penalty object with correct values
+      billObj.penalty = {
+        amount: penaltyAmount,
+        days: daysLate,
+        rate: 50,
+        appliedDate: bill.penalty?.appliedDate || currentDate
+      };
       
       // Update status if overdue
       if (penaltyAmount > 0 && bill.status !== 'paid') {
@@ -2157,8 +2480,12 @@ app.get('/api/tenant/previous-bills', authenticateToken, async (req, res) => {
       const penaltyAmount = bill.penalty?.amount || 0;
       const daysLate = bill.penalty?.days || 0;
       
+      // Calculate base amount (without penalty) for UI display
+      const baseAmount = bill.totalAmount - penaltyAmount;
+      
       billObj.lateFee = penaltyAmount;
       billObj.daysLate = daysLate;
+      billObj.baseAmount = baseAmount; // Base amount without penalty
       // bill.totalAmount already includes penalty, so totalWithLateFee = totalAmount
       billObj.totalWithLateFee = bill.totalAmount;
       billObj.remainingAmount = Math.max(0, bill.totalAmount - bill.paidAmount);
@@ -2217,17 +2544,64 @@ app.get('/api/tenant/bills/:billId', authenticateToken, async (req, res) => {
     const payments = await Payment.find({ bill: billId })
       .sort({ paidAt: -1 });
 
-    // Use stored penalty amounts - bill.totalAmount already includes penalty
-    const penaltyAmount = bill.penalty?.amount || 0;
-    const daysLate = bill.penalty?.days || 0;
+    // CRITICAL: Calculate penalty on-the-fly based on due date as PRIMARY source of truth
+    let penaltyAmount = 0;
+    let daysLate = 0;
+    
+    if (bill.status !== 'paid' && currentDate > bill.dueDate) {
+      daysLate = Math.floor((currentDate - bill.dueDate) / (1000 * 60 * 60 * 24));
+      if (daysLate > 0) {
+        penaltyAmount = daysLate * 50; // ₹50 per day - PRIMARY calculation
+      }
+    }
+    
+    // Use database value as fallback ONLY if on-the-fly calculation is 0 (not overdue)
+    if (penaltyAmount === 0) {
+      penaltyAmount = bill.penalty?.amount ?? 0;
+      daysLate = bill.penalty?.days ?? 0;
+    }
+    
+    // Calculate base amount (without penalty) - extract from totalAmount
+    let baseAmount = 0;
+    if (bill.items) {
+      // Calculate from items first (most accurate)
+      baseAmount += bill.items.rent?.amount || 0;
+      baseAmount += bill.items.electricity?.amount || 0;
+      baseAmount += bill.items.waterBill?.amount || 0;
+      baseAmount += bill.items.commonAreaCharges?.amount || 0;
+      if (bill.items.additionalCharges && Array.isArray(bill.items.additionalCharges)) {
+        baseAmount += bill.items.additionalCharges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
+      }
+    }
+    
+    // If baseAmount is still 0, calculate from totalAmount
+    if (baseAmount <= 0) {
+      const dbTotal = bill.totalAmount ?? 0;
+      const dbPenalty = bill.penalty?.amount ?? 0;
+      baseAmount = dbTotal - dbPenalty;
+      // If that's still 0 or negative, use totalAmount directly
+      if (baseAmount <= 0) {
+        baseAmount = dbTotal;
+      }
+    }
+    
+    // Calculate total with penalty
+    const totalWithLateFee = baseAmount + penaltyAmount;
 
     const billWithDetails = {
       ...bill.toObject(),
       lateFee: penaltyAmount,
       daysLate: daysLate,
-      // bill.totalAmount already includes penalty, so totalWithLateFee = totalAmount
-      totalWithLateFee: bill.totalAmount,
-      remainingAmount: Math.max(0, bill.totalAmount - bill.paidAmount),
+      baseAmount: baseAmount,
+      totalWithLateFee: totalWithLateFee,
+      totalAmount: totalWithLateFee, // Ensure totalAmount includes penalty
+      remainingAmount: Math.max(0, totalWithLateFee - (bill.paidAmount || 0)),
+      penalty: {
+        amount: penaltyAmount,
+        days: daysLate,
+        rate: 50,
+        appliedDate: bill.penalty?.appliedDate || currentDate
+      },
       payments
     };
 

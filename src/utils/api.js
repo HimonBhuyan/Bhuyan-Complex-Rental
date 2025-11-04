@@ -6,8 +6,19 @@
  * @returns {string} The base API URL
  */
 export const getApiBaseUrl = () => {
-  // Check for environment variables first (highest priority)
+  // CRITICAL: For local development, always use localhost
+  // Check if we're in development mode (not production build)
+  const isDevelopment = import.meta.env.DEV || !import.meta.env.PROD;
+  
+  // Force localhost for development to avoid hitting Render backend
+  if (isDevelopment) {
+    console.log('🔧 [API Config] Development mode detected - using localhost:3001');
+    return 'http://localhost:3001';
+  }
+  
+  // Check for environment variables (for production/staging)
   if (import.meta.env.VITE_API_URL) {
+    console.log('🔧 [API Config] Using VITE_API_URL from environment:', import.meta.env.VITE_API_URL);
     return import.meta.env.VITE_API_URL;
   }
   
@@ -15,10 +26,13 @@ export const getApiBaseUrl = () => {
   if (import.meta.env.PROD) {
     const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
     const host = window.location.host;
-    return `${protocol}//${host}`;
+    const url = `${protocol}//${host}`;
+    console.log('🔧 [API Config] Production mode - using same host:', url);
+    return url;
   }
   
-  // Default to localhost for development
+  // Default fallback to localhost
+  console.log('🔧 [API Config] Default fallback - using localhost:3001');
   return 'http://localhost:3001';
 };
 

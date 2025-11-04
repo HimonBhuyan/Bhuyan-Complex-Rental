@@ -51,9 +51,15 @@ const ClientDashboard = ({ user, onLogout }) => {
         return;
       }
       
-      console.log('🔑 Using token:', token.substring(0, 20) + '...');
+      const apiUrl = getApiUrl();
+      const fullUrl = `${apiUrl}/tenant/dashboard`;
       
-      const response = await fetch(`${getApiUrl()}/tenant/dashboard`, {
+      console.log('🔑 Using token:', token.substring(0, 20) + '...');
+      console.log('🌐 API URL:', apiUrl);
+      console.log('🌐 Full URL:', fullUrl);
+      console.log('⚠️ IMPORTANT: Make sure this points to localhost:3001 for development!');
+      
+      const response = await fetch(fullUrl, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -66,6 +72,21 @@ const ClientDashboard = ({ user, onLogout }) => {
         console.log('👤 Tenant:', data.tenant?.name);
         console.log('📄 Bills:', data.bills?.length, 'found');
         console.log('💳 Payments:', data.payments?.length, 'found');
+        
+        // Debug: Log penalty data for each bill
+        if (data.bills && data.bills.length > 0) {
+          console.log('📊 Bill Penalty Data:');
+          data.bills.slice(0, 3).forEach(bill => {
+            const currentDate = new Date();
+            const daysOverdue = bill.dueDate ? Math.floor((currentDate - new Date(bill.dueDate)) / (1000 * 60 * 60 * 24)) : 0;
+            const expectedPenalty = daysOverdue * 50;
+            console.log(`  ${bill.billNumber}:`);
+            console.log(`    lateFee: ₹${bill.lateFee} (daysLate: ${bill.daysLate})`);
+            console.log(`    penalty.amount: ₹${bill.penalty?.amount} (days: ${bill.penalty?.days})`);
+            console.log(`    Expected: ₹${expectedPenalty} (${daysOverdue} days)`);
+            console.log(`    totalWithLateFee: ₹${bill.totalWithLateFee}`);
+          });
+        }
         
         setTenantData(data.tenant);
         setBills(data.bills || []);
@@ -166,7 +187,8 @@ const ClientDashboard = ({ user, onLogout }) => {
       
       if (paymentMethod === 'razorpay') {
         // Create Razorpay order
-        const safeAmount = Math.round((bill.totalAmount || 0) + (bill.penalty?.amount || 0));
+        // bill.totalAmount already includes penalty, so use totalAmount directly
+        const safeAmount = Math.round(bill.totalAmount || 0);
         const orderResponse = await fetch(`${getApiUrl()}/payments/create-order`, {
           method: 'POST',
           headers: {
@@ -491,8 +513,8 @@ const ClientDashboard = ({ user, onLogout }) => {
     const currentBills = bills.filter(bill => 
       bill.status === 'pending' || bill.status === 'overdue'
     );
-    const totalDue = currentBills.reduce((sum, bill) => 
-      sum + (bill.totalWithLateFee || bill.totalAmount + (bill.penalty?.amount || 0)), 0
+        const totalDue = currentBills.reduce((sum, bill) => 
+      sum + (bill.totalWithLateFee || bill.totalAmount), 0
     );
 
     return (
@@ -623,7 +645,7 @@ const ClientDashboard = ({ user, onLogout }) => {
                 </div>
                 <div className="bill-details">
                   <div className="bill-amount">
-                    ₹{(bill.totalWithLateFee || bill.totalAmount + (bill.penalty?.amount || 0)).toLocaleString()}
+                    ₹{(bill.totalWithLateFee || bill.totalAmount).toLocaleString()}
                   </div>
                   <div className="bill-period">
                     {new Date(bill.year, bill.month - 1).toLocaleDateString('en-US', { 
@@ -818,7 +840,7 @@ const ClientDashboard = ({ user, onLogout }) => {
           <div className="bills-summary">
           {pendingBills.length} pending bill{pendingBills.length !== 1 ? 's' : ''} • 
             Total: ₹{pendingBills.reduce((sum, bill) => 
-              sum + (bill.totalWithLateFee || bill.totalAmount + (bill.penalty?.amount || 0)), 0
+              sum + (bill.totalWithLateFee || bill.totalAmount), 0
             ).toLocaleString()}
           </div>
         </div>
@@ -911,7 +933,7 @@ const ClientDashboard = ({ user, onLogout }) => {
 
                   <div className="breakdown-subtotal">
                     <span>Subtotal</span>
-                    <span>₹{bill.totalAmount.toLocaleString()}</span>
+                    <span>₹{(bill.baseAmount || bill.totalAmount).toLocaleString()}</span>
                   </div>
 
                   {(bill.lateFee > 0 || bill.penalty?.amount > 0) && (
@@ -927,7 +949,7 @@ const ClientDashboard = ({ user, onLogout }) => {
 
                   <div className="breakdown-total">
                     <span>Total Amount</span>
-                    <span>₹{(bill.totalWithLateFee || bill.totalAmount + (bill.penalty?.amount || 0)).toLocaleString()}</span>
+                    <span>₹{(bill.totalWithLateFee || bill.totalAmount).toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -954,7 +976,7 @@ const ClientDashboard = ({ user, onLogout }) => {
                     })}
                   >
                     <CreditCard size={16} />
-                    Pay ₹{(bill.totalWithLateFee || bill.totalAmount + (bill.penalty?.amount || 0)).toLocaleString()}
+                    Pay ₹{(bill.totalWithLateFee || bill.totalAmount).toLocaleString()}
                   </button>
                   <button 
                     className="download-invoice-btn"
@@ -1008,7 +1030,7 @@ const ClientDashboard = ({ user, onLogout }) => {
                 })}
               </div>
               <div className="td amount">
-                ₹{(bill.totalWithLateFee || bill.totalAmount + (bill.penalty?.amount || 0)).toLocaleString()}
+                ₹{(bill.totalWithLateFee || bill.totalAmount).toLocaleString()}
                 {((bill.lateFee > 0) || (bill.penalty?.amount > 0)) && (
                   <small className="penalty-note">
                     (incl. ₹{(bill.lateFee || bill.penalty?.amount || 0).toLocaleString()} late fee)
@@ -1080,7 +1102,7 @@ const ClientDashboard = ({ user, onLogout }) => {
       <div className="payment-header">
         <h3>Pay Bill - {bill.billNumber}</h3>
         <div className="payment-amount">
-          Total: ₹{(bill.totalWithLateFee || bill.totalAmount + (bill.penalty?.amount || 0)).toLocaleString()}
+          Total: ₹{(bill.totalWithLateFee || bill.totalAmount).toLocaleString()}
         </div>
       </div>
 
@@ -1122,7 +1144,7 @@ const ClientDashboard = ({ user, onLogout }) => {
         </div>
         <div className="summary-item">
           <span>Bill Amount:</span>
-          <span>₹{bill.totalAmount.toLocaleString()}</span>
+          <span>₹{(bill.baseAmount || bill.totalAmount).toLocaleString()}</span>
         </div>
         {((bill.lateFee > 0) || (bill.penalty?.amount > 0)) && (
           <div className="summary-item penalty">
@@ -1132,7 +1154,7 @@ const ClientDashboard = ({ user, onLogout }) => {
         )}
         <div className="summary-total">
           <span>Total Amount:</span>
-          <span>₹{(bill.totalWithLateFee || bill.totalAmount + (bill.penalty?.amount || 0)).toLocaleString()}</span>
+          <span>₹{(bill.totalWithLateFee || bill.totalAmount).toLocaleString()}</span>
         </div>
       </div>
     </div>
